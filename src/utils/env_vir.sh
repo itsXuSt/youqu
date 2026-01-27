@@ -64,7 +64,7 @@ env
 
 init_pip
 
-sudo pip3 install pipenv > /tmp/env.log 2>&1
+sudo pip3 install pipenv -i https://repo.huaweicloud.com/repository/pypi/simple > /tmp/env.log 2>&1
 if [ $? = 0 ]; then
     echo -e "pipenv\t安装成功 √"
 else
