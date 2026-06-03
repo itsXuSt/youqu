@@ -186,6 +186,20 @@ class _GlobalConfig:
         .split(",")
     )
 
+    # [vlm]
+    vlm_cfg = GetCfg(GLOBAL_CONFIG_FILE_PATH, "vlm")
+    VLM_ENABLED = vlm_cfg.get_bool("VLM_ENABLED", default=False)
+    VLM_BASE_URL = vlm_cfg.get("VLM_BASE_URL", default="http://localhost:8000/v1")
+    VLM_MODEL = vlm_cfg.get("VLM_MODEL", default="Qwen/Qwen2.5-VL-7B-Instruct")
+    VLM_API_KEY = vlm_cfg.get("VLM_API_KEY", default="not-needed")
+    VLM_TIMEOUT = vlm_cfg.get("VLM_TIMEOUT", default=30)
+    VLM_MAX_RETRIES = vlm_cfg.get("VLM_MAX_RETRIES", default=3)
+    VLM_RETRY_DELAY = vlm_cfg.get("VLM_RETRY_DELAY", default=1)
+    VLM_MAX_IMAGE_DIM = vlm_cfg.get("VLM_MAX_IMAGE_DIM", default=2048)
+    VLM_CONFIDENCE_THRESHOLD = vlm_cfg.get("VLM_CONFIDENCE_THRESHOLD", default=0.5)
+    VLM_MAX_ITERATIONS = vlm_cfg.get("VLM_MAX_ITERATIONS", default=20)
+    VLM_EVIDENCE_DIR = join(ROOT_DIR, vlm_cfg.get("VLM_EVIDENCE_DIR", default="report/vlm_evidence"))
+
     # [git]
     git_cfg = GetCfg(GLOBAL_CONFIG_FILE_PATH, "git")
     GIT_URL = git_cfg.get("GIT_URL", default="")

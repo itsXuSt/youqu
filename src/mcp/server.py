@@ -1,0 +1,738 @@
+#!/usr/bin/env python3
+# _*_ coding:utf-8 _*_
+# SPDX-FileCopyrightText: 2023 UnionTech Software Technology Co., Ltd.
+# SPDX-License-Identifier: GPL-2.0-only
+
+"""YouQu MCP Server - expose desktop automation tools via MCP protocol."""
+
+import os
+import sys
+from pathlib import Path
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+from typing import Any, cast
+
+os.environ.setdefault("DISPLAY", ":0")
+
+_project_root = Path(__file__).resolve().parent.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
+try:
+    from fastmcp import FastMCP
+except ImportError:
+    print("Error: fastmcp is required for MCP server mode.")
+    print("Install it with: pip install fastmcp")
+    sys.exit(1)
+
+
+@asynccontextmanager
+async def youqu_lifespan(server: FastMCP) -> AsyncIterator[dict]:
+    state = {}  # type: dict
+    try:
+        from src.mouse_key import MouseKey
+        state["screen_size"] = MouseKey.screen_size()
+    except Exception:
+        pass
+    yield state
+
+
+mcp = FastMCP(
+    name="YouQu Desktop Automation",
+    instructions=(
+        "YouQu Linux desktop automation tools. "
+        "Use these tools to control desktop applications via AT-SPI, mouse/keyboard, "
+        "image recognition, OCR, and VLM (Vision Language Model)."
+    ),
+    lifespan=youqu_lifespan,
+)
+
+
+# ============================================================
+# AT-SPI Tools
+# ============================================================
+
+@mcp.tool
+def atspi_find_element(app_name: str, expr: str, index: int = 0) -> dict:
+    """Find UI element by AT-SPI path expression.
+
+    Args:
+        app_name: Application name (e.g. 'deepin-music')
+        expr: Element path expression (e.g. '$/name/role')
+        index: Element index when multiple matches found (default 0)
+    """
+    from src.dogtail_utils import DogtailUtils
+    try:
+        dog = DogtailUtils(name=app_name)
+        element = dog.find_element_by_attr(expr, index)
+        return {"success": True, "element": str(element)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def atspi_find_and_click(app_name: str, expr: str, index: int = 0) -> dict:
+    """Find and click a UI element by AT-SPI path expression.
+
+    Args:
+        app_name: Application name
+        expr: Element path expression
+        index: Element index (default 0)
+    """
+    from src.dogtail_utils import DogtailUtils
+    try:
+        dog = DogtailUtils(name=app_name)
+        dog.find_element_by_attr_and_click(expr, index)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def atspi_find_and_right_click(app_name: str, expr: str, index: int = 0) -> dict:
+    """Find and right-click a UI element by AT-SPI path expression.
+
+    Args:
+        app_name: Application name
+        expr: Element path expression
+        index: Element index (default 0)
+    """
+    from src.dogtail_utils import DogtailUtils
+    try:
+        dog = DogtailUtils(name=app_name)
+        dog.find_element_by_attr_and_right_click(expr, index)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def atspi_get_children_text(app_name: str, element_expr: str) -> dict:
+    """Get all children text of a UI element.
+
+    Args:
+        app_name: Application name
+        element_expr: Element path to get children from
+    """
+    from src.dogtail_utils import DogtailUtils
+    try:
+        dog = DogtailUtils(name=app_name)
+        text = dog.get_element_children_text(element_expr)
+        return {"success": True, "text": text}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================
+# Mouse/Keyboard Tools
+# ============================================================
+
+@mcp.tool
+def mouse_click(x: int, y: int) -> dict:
+    """Left click at screen coordinates (x, y).
+
+    Args:
+        x: X coordinate
+        y: Y coordinate
+    """
+    from src.mouse_key import MouseKey
+    try:
+        MouseKey.click(_x=x, _y=y)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def mouse_right_click(x: int, y: int) -> dict:
+    """Right click at screen coordinates (x, y).
+
+    Args:
+        x: X coordinate
+        y: Y coordinate
+    """
+    from src.mouse_key import MouseKey
+    try:
+        MouseKey.right_click(_x=x, _y=y)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def mouse_double_click(x: int, y: int) -> dict:
+    """Double click at screen coordinates (x, y).
+
+    Args:
+        x: X coordinate
+        y: Y coordinate
+    """
+    from src.mouse_key import MouseKey
+    try:
+        MouseKey.double_click(_x=x, _y=y)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def mouse_move_to(x: int, y: int, duration: float = 0.4) -> dict:
+    """Move mouse to coordinates (x, y) with optional duration.
+
+    Args:
+        x: X coordinate
+        y: Y coordinate
+        duration: Move duration in seconds (default 0.4)
+    """
+    from src.mouse_key import MouseKey
+    try:
+        MouseKey.move_to(_x=x, _y=y, duration=duration)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def mouse_scroll(amount: int) -> dict:
+    """Scroll mouse wheel. Positive = up, negative = down.
+
+    Args:
+        amount: Scroll amount (positive=up, negative=down)
+    """
+    from src.mouse_key import MouseKey
+    try:
+        MouseKey.mouse_scroll(amount_of_scroll=amount)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def keyboard_type_text(text: str) -> dict:
+    """Type text using keyboard input. Supports Chinese input.
+
+    Args:
+        text: Text to type
+    """
+    from src.mouse_key import MouseKey
+    try:
+        MouseKey.input_message(text)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def keyboard_press_key(key: str) -> dict:
+    """Press a keyboard key or key combination.
+    Examples: 'Return', 'Escape', 'ctrl+a', 'alt+F4'.
+    Dangerous key combos (alt+F4, ctrl+alt+del, etc.) are blocked.
+
+    Args:
+        key: Key name or combination
+    """
+    key_lower = key.lower().replace(" ", "")
+    if key_lower in _DANGEROUS_KEY_COMBOS:
+        return {"success": False, "error": "Dangerous key combo '{}' blocked".format(key)}
+    from src.mouse_key import MouseKey
+    try:
+        MouseKey().press_key(key)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def keyboard_hot_key(*keys: str) -> dict:
+    """Press a key combination. Examples: hot_key('ctrl', 'c'), hot_key('alt', 'Tab').
+    Dangerous key combos (alt+F4, ctrl+alt+del, etc.) are blocked.
+
+    Args:
+        keys: Key names to combine
+    """
+    if _check_dangerous_keys(keys):
+        return {"success": False, "error": "Dangerous key combo blocked"}
+    from src.mouse_key import MouseKey
+    try:
+        MouseKey.hot_key(*keys)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def get_screen_size() -> dict:
+    """Get current screen resolution. Returns {width, height}."""
+    from src.mouse_key import MouseKey
+    try:
+        w, h = MouseKey.screen_size()
+        return {"success": True, "width": w, "height": h}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================
+# Window Tools
+# ============================================================
+
+@mcp.tool
+def window_get_info(app_name: str, config_path: str = "") -> dict:
+    """Get window information for an application.
+
+    Args:
+        app_name: Application name to get window info for
+        config_path: Path to the UI config file (ui.ini), must be within project dir
+    """
+    from src.button_center import ButtonCenter
+    try:
+        ui = ButtonCenter(app_name=app_name, config_path=_validate_config_path(config_path))
+        info = ui.window_info()
+        return {"success": True, "info": str(info)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def window_focus(app_name: str, config_path: str = "") -> dict:
+    """Focus (bring to front) an application window.
+
+    Args:
+        app_name: Application name to focus
+        config_path: Path to the UI config file (ui.ini), must be within project dir
+    """
+    from src.button_center import ButtonCenter
+    try:
+        ui = ButtonCenter(app_name=app_name, config_path=_validate_config_path(config_path))
+        ui.focus_windows(app_name)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def window_get_center(app_name: str, config_path: str = "") -> dict:
+    """Get the center coordinates of an application window.
+
+    Args:
+        app_name: Application name
+        config_path: Path to the UI config file (ui.ini), must be within project dir
+    """
+    from src.button_center import ButtonCenter
+    try:
+        ui = ButtonCenter(app_name=app_name, config_path=_validate_config_path(config_path))
+        cx, cy = ui.window_center()
+        return {"success": True, "x": cx, "y": cy}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def window_get_count(app_name: str, config_path: str = "") -> dict:
+    """Get the number of windows for an application.
+
+    Args:
+        app_name: Application name
+        config_path: Path to the UI config file (ui.ini), must be within project dir
+    """
+    from src.button_center import ButtonCenter
+    try:
+        ui = ButtonCenter(app_name=app_name, config_path=_validate_config_path(config_path))
+        count = ui.get_windows_number(app_name)
+        return {"success": True, "count": count}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================
+# Assertion Tools
+# ============================================================
+
+@mcp.tool
+def assert_element_exists(expr: str) -> dict:
+    """Assert that a UI element exists via AT-SPI.
+
+    Args:
+        expr: Element path expression to check (e.g. '$/app-name//element')
+    """
+    from src.assert_common import AssertCommon
+    try:
+        AssertCommon.assert_element_exist(expr)
+        return {"success": True, "assertion": "PASS"}
+    except AssertionError as e:
+        return {"success": True, "assertion": "FAIL", "reason": str(e)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def assert_element_not_exists(expr: str) -> dict:
+    """Assert that a UI element does NOT exist via AT-SPI.
+
+    Args:
+        expr: Element path expression to check
+    """
+    from src.assert_common import AssertCommon
+    try:
+        AssertCommon.assert_element_not_exist(expr)
+        return {"success": True, "assertion": "PASS"}
+    except AssertionError as e:
+        return {"success": True, "assertion": "FAIL", "reason": str(e)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def assert_process_running(app_name: str) -> dict:
+    """Assert that an application process is running.
+
+    Args:
+        app_name: Process name to check
+    """
+    from src.assert_common import AssertCommon
+    try:
+        AssertCommon.assert_process_status(True, app_name)
+        return {"success": True, "assertion": "PASS"}
+    except AssertionError as e:
+        return {"success": True, "assertion": "FAIL", "reason": str(e)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def assert_window_count(app_name: str, expected: int) -> dict:
+    """Assert the number of windows for an application.
+
+    Args:
+        app_name: Application name
+        expected: Expected window count
+    """
+    from src.assert_common import AssertCommon
+    try:
+        AssertCommon.assert_window_amount(app_name, expected)
+        return {"success": True, "assertion": "PASS"}
+    except AssertionError as e:
+        return {"success": True, "assertion": "FAIL", "reason": str(e)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def assert_image_exists(image_path: str, rate: float = 0.8) -> dict:
+    """Assert that an image exists on screen by template matching.
+
+    Args:
+        image_path: Path to template image file
+        rate: Match confidence threshold (0.0-1.0, default 0.8)
+    """
+    from src.assert_common import AssertCommon
+    try:
+        AssertCommon.assert_image_exist(image_path, rate)
+        return {"success": True, "assertion": "PASS"}
+    except AssertionError as e:
+        return {"success": True, "assertion": "FAIL", "reason": str(e)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def assert_file_exists(file_path: str) -> dict:
+    """Assert that a file exists on disk.
+
+    Args:
+        file_path: File path to check
+    """
+    from src.assert_common import AssertCommon
+    try:
+        AssertCommon.assert_file_exist(file_path)
+        return {"success": True, "assertion": "PASS"}
+    except AssertionError as e:
+        return {"success": True, "assertion": "FAIL", "reason": str(e)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+_ALLOWED_QUERY_COMMANDS = frozenset([
+    "dpkg-query", "ps", "pgrep", "which", "whereis",
+    "gsettings", "dbus-send", "dconf", "lsusb", "lspci",
+    "xrandr", "xdpyinfo", "fc-list", "locale",
+])
+
+_PROTECTED_PROCESSES = frozenset([
+    "systemd", "init", "Xorg", "Xwayland", "Wayland", "sshd",
+    "cron", "dbus-daemon", "lightdm", "dde-session", "startdde",
+    "deepin-desktop", "pulseaudio", "pipewire", "kwin", "mutter",
+    "gnome-shell", "deepin-wm", "networkd", "udevd",
+])
+
+_DANGEROUS_KEY_COMBOS = frozenset([
+    "alt+f4", "ctrl+alt+del", "ctrl+alt+t", "ctrl+alt+backspace",
+    "ctrl+alt+f1", "ctrl+alt+f2", "ctrl+alt+f3", "ctrl+alt+f4",
+    "ctrl+alt+f5", "ctrl+alt+f6", "ctrl+alt+escape", "ctrl+shift+escape",
+    "super+l", "super+d", "super+q", "ctrl+z",
+])
+
+
+def _check_dangerous_keys(keys) -> bool:
+    combo = "+".join(str(k).lower().strip() for k in keys)
+    return combo in _DANGEROUS_KEY_COMBOS
+
+
+_MAX_IMAGE_BYTES = 20 * 1024 * 1024
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
+def _validate_config_path(config_path: str) -> str:
+    if not config_path:
+        return config_path
+    resolved = Path(config_path).resolve()
+    try:
+        resolved.relative_to(_PROJECT_ROOT)
+    except ValueError:
+        raise ValueError("config_path must be within project directory")
+    return str(resolved)
+
+
+# ============================================================
+# System Tools
+# ============================================================
+
+@mcp.tool
+def system_run_command(command: str) -> dict:
+    """Execute a limited shell command and return output.
+    Only read-only query commands are allowed (ps, dpkg-query, gsettings, etc.).
+
+    Args:
+        command: Shell command to execute (restricted to allowed commands)
+    """
+    import re as _re
+    parts = command.strip().split(maxsplit=1)
+    if not parts:
+        return {"success": False, "error": "Empty command"}
+    base = os.path.basename(parts[0])
+    if base not in _ALLOWED_QUERY_COMMANDS:
+        return {"success": False, "error": "Command '{}' not in allowlist".format(base)}
+    from src.cmdctl import CmdCtl
+    try:
+        output = CmdCtl.run_cmd(command)
+        return {"success": True, "output": output}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def system_kill_process(process_name: str) -> dict:
+    """Kill a running process by name.
+    System-critical processes are protected and cannot be killed.
+
+    Args:
+        process_name: Process name to kill
+    """
+    import re as _re
+    base = os.path.basename(process_name).strip()
+    if not _re.match(r"^[\w\-.]+$", base):
+        return {"success": False, "error": "Invalid process name"}
+    if base in _PROTECTED_PROCESSES or any(base.startswith(p) for p in _PROTECTED_PROCESSES):
+        return {"success": False, "error": "Protected process '{}' cannot be killed".format(base)}
+    from src.cmdctl import CmdCtl
+    try:
+        CmdCtl.kill_process(process_name)
+        return {"success": True}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def system_get_process_status(process_name: str) -> dict:
+    """Check if a process is running.
+
+    Args:
+        process_name: Process name to check
+    """
+    from src.cmdctl import CmdCtl
+    try:
+        status = CmdCtl.get_process_status(process_name)
+        return {"success": True, "running": status}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================
+# DBus Tools
+# ============================================================
+
+@mcp.tool
+def dbus_get_property(
+    bus_type: str,
+    service: str,
+    path: str,
+    interface_name: str,
+    property_name: str,
+) -> dict:
+    """Get a D-Bus property value.
+
+    Args:
+        bus_type: Bus type, 'session' or 'system'
+        service: D-Bus service name (e.g. 'com.deepin.daemon.Appearance')
+        path: Object path (e.g. '/com/deepin/daemon/Appearance')
+        interface_name: Interface name (e.g. 'com.deepin.daemon.Appearance')
+        property_name: Property name to read
+    """
+    from src.dbus_utils import DbusUtils
+    try:
+        dbus = DbusUtils(
+            dbus_name=service,
+            object_path=path,
+            interface=interface_name,
+        )
+        if bus_type == "system":
+            value = dbus.get_system_properties_value(property_name)
+        else:
+            value = dbus.get_session_properties_value(property_name)
+        return {"success": True, "value": str(value)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================
+# VLM Tools (optional, graceful degradation)
+# ============================================================
+
+@mcp.tool
+def vlm_click(description: str) -> dict:
+    """Locate and click a UI element using VLM (Vision Language Model).
+    Falls back to error if VLM is not available.
+
+    Args:
+        description: Natural language description of the element to click,
+                     e.g. "main menu button", "copy icon in toolbar"
+    """
+    try:
+        from src.vlm.config import VLMConfig  # type: ignore[import-untyped]
+    except ImportError:
+        return {"success": False, "error": "VLM module not available."}
+    config = VLMConfig()
+    if not config.is_available():
+        return {
+            "success": False,
+            "error": "VLM not available. Enable in globalconfig.ini [vlm] section.",
+        }
+    try:
+        from src.vlm.vlm_locator import create_vlm_locator  # type: ignore[import-untyped]
+        from src.vlm.vlm_executor import VLMExecutor  # type: ignore[import-untyped]
+        locator = create_vlm_locator(config)
+        executor = VLMExecutor(locator, config)
+        result = executor.click_by_description(description)
+        return {
+            "success": result.success,
+            "x": result.x,
+            "y": result.y,
+            "confidence": result.confidence,
+            "message": result.message,
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def vlm_assert_visual(assertion: str, expected: str) -> dict:
+    """Evaluate a visual assertion using VLM on the current screen.
+
+    Args:
+        assertion: What to assert, e.g. "dialog is visible"
+        expected: Expected state, e.g. "dialog title shows 'Save'"
+    """
+    try:
+        from src.vlm.config import VLMConfig  # type: ignore[import-untyped]
+    except ImportError:
+        return {"success": False, "error": "VLM module not available."}
+    config = VLMConfig()
+    if not config.is_available():
+        return {
+            "success": False,
+            "error": "VLM not available. Enable in globalconfig.ini [vlm] section.",
+        }
+    try:
+        from src.vlm.vlm_locator import create_vlm_locator  # type: ignore[import-untyped]
+        from src.vlm.screenshot import capture_for_vlm  # type: ignore[import-untyped]
+        locator = create_vlm_locator(config)
+        img_path = str(config.evidence_dir / "vlm_assert.png")
+        capture_for_vlm(output_path=img_path)
+        result = locator.evaluate_assertion(img_path, assertion, expected)
+        if result:
+            return {
+                "success": True,
+                "verdict": result.verdict,
+                "confidence": result.confidence,
+                "reason": result.reason,
+            }
+        return {"success": False, "error": "VLM returned no result"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def vlm_agent_run(instruction: str, max_iterations: int = 10) -> dict:
+    """Run VLM Agent for autonomous test execution.
+    The agent will observe the screen and autonomously perform actions
+    to complete the given instruction.
+
+    Args:
+        instruction: Natural language test instruction,
+                     e.g. "open file menu and click save"
+        max_iterations: Maximum number of action iterations (clamped to 1-20)
+    """
+    max_iterations = min(max(max_iterations, 1), 20)
+    try:
+        from src.vlm.config import VLMConfig  # type: ignore[import-untyped]
+    except ImportError:
+        return {"success": False, "error": "VLM module not available."}
+    config = VLMConfig()
+    if not config.is_available():
+        return {
+            "success": False,
+            "error": "VLM not available. Enable in globalconfig.ini [vlm] section.",
+        }
+    try:
+        from src.vlm.vlm_locator import create_vlm_locator  # type: ignore[import-untyped]
+        from src.vlm.vlm_agent import VLMAgent  # type: ignore[import-untyped]
+        locator = create_vlm_locator(config)
+        agent = VLMAgent(locator, config)
+        result = agent.run(instruction, max_iterations=max_iterations)
+        return result
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================
+# Screenshot Tools
+# ============================================================
+
+@mcp.tool
+def screenshot_save() -> dict:
+    """Take a screenshot of the entire screen and save to evidence directory."""
+    try:
+        from src.vlm.config import VLMConfig  # type: ignore[import-untyped]
+        from src.vlm.screenshot import capture_for_vlm  # type: ignore[import-untyped]
+
+        config = VLMConfig()
+        path = str(config.evidence_dir / "screenshot.png")
+        capture_for_vlm(output_path=path)
+        return {"success": True, "path": path}
+    except ImportError:
+        return {"success": False, "error": "screenshot module not available"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+# ============================================================
+# Entry Point
+# ============================================================
+
+def start(transport: str = "stdio", port: int = 8000):
+    """Start the MCP server.
+
+    Args:
+        transport: 'stdio' for Claude Desktop, 'sse' for HTTP server
+        port: HTTP port (only used when transport='sse')
+    """
+    mcp.run(transport=cast(Any, transport), port=port)

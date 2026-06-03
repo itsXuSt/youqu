@@ -43,3 +43,4 @@ class SubCmd(Enum):
     csvctl = "csvctl"
     startapp = "startapp"
     git = "git"
+    mcp = "mcp"

@@ -94,6 +94,17 @@ class Manage:
 
             git_control(parser, sub_parser_git)
 
+        elif self.cmd_args[0] == SubCmd.mcp.value:
+            sub_parser_mcp = subparsers.add_parser(SubCmd.mcp.value)
+            try:
+                from src.mcp.server import start
+
+                start()
+            except ImportError as exc:
+                logger.error(
+                    f"MCP 模式需要 Python >=3.10 并安装 fastmcp: {exc}"
+                )
+
         elif self.cmd_args[0] in ["-h", "--help"]:
             print(help_tip())
 

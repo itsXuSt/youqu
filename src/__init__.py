@@ -38,6 +38,23 @@ from src.pinyin import pinyin as pinyin
 from src.sleepx import sleep as sleep
 from src.custom_exception import *
 
+try:
+    from src.vlm.config import VLMConfig as VLMConfig
+    from src.vlm.vlm_executor import VLMExecutor as VLMExecutor
+    from src.vlm.vlm_agent import VLMAgent as VLMAgent
+    from src.vlm.vlm_locator import (
+        create_vlm_locator as create_vlm_locator,
+        ClickTarget as ClickTarget,
+        VLMAssertResult as VLMAssertResult,
+    )
+except ImportError:
+    VLMConfig = None
+    VLMExecutor = None
+    VLMAgent = None
+    create_vlm_locator = None
+    ClickTarget = None
+    VLMAssertResult = None
+
 
 class Src(
     CmdCtl,
@@ -72,3 +89,25 @@ class Src(
         ui_name = ui_name if ui_name else name
         # pylint: disable=invalid-name
         self.ui = ButtonCenter(app_name=ui_name, config_path=config_path, number=number)
+        self._vlm_executor = None
+        self._vlm_agent = None
+
+    @property
+    def vlm(self):
+        config = VLMConfig()
+        if VLMExecutor is None or not config.is_available():
+            return None
+        if self._vlm_executor is None:
+            locator = create_vlm_locator(config)
+            self._vlm_executor = VLMExecutor(locator, config)
+        return self._vlm_executor
+
+    @property
+    def vlm_agent(self):
+        config = VLMConfig()
+        if VLMAgent is None or not config.is_available():
+            return None
+        if self._vlm_agent is None:
+            locator = create_vlm_locator(config)
+            self._vlm_agent = VLMAgent(locator, config)
+        return self._vlm_agent
