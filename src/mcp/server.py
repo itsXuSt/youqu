@@ -728,11 +728,13 @@ def screenshot_save() -> dict:
 # Entry Point
 # ============================================================
 
-def start(transport: str = "stdio", port: int = 8000):
+def start(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.1"):
     """Start the MCP server.
 
     Args:
-        transport: 'stdio' for Claude Desktop, 'sse' for HTTP server
-        port: HTTP port (only used when transport='sse')
+        transport: 'stdio' for Claude Desktop, 'sse' for HTTP+SSE,
+                   'http' for Streamable HTTP (recommended for remote).
+        port: HTTP port (only used when transport='sse' or 'http').
+        host: Bind address (only used when transport='sse' or 'http').
     """
-    mcp.run(transport=cast(Any, transport), port=port)
+    mcp.run(transport=cast(Any, transport), port=port, host=host)

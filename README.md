@@ -161,6 +161,125 @@ $ youqu manage.py run -a apps/autotest_deepin_some -k "xxx" -t "yyy"
 $ youqu manage.py remote
 ```
 
+## [MCP Server — AI 驱动的桌面自动化]()
+
+YouQu 内置 MCP (Model Context Protocol) Server，将桌面 UI 自动化能力暴露为 MCP 工具，
+使 AI 客户端（Claude、OpenCode 等）能够直接操控测试机上的桌面应用。
+
+### 功能概览
+
+| 工具组 | 能力 | 示例 |
+|--------|------|------|
+| **AT-SPI 操作** | 元素查找、点击、输入、滚动、悬停 | 点击按钮、输入文本、展开菜单 |
+| **键盘鼠标** | 按键、快捷键、点击、移动 | Enter、Ctrl+C、鼠标左键 |
+| **窗口管理** | 窗口列表、激活、关闭、最大化/最小化 | 切换窗口、关闭弹窗 |
+| **截图** | 全屏截图并保存 | 保存当前屏幕到证据目录 |
+| **进程管理** | 查询进程、终止进程（保护关键进程） | 关闭应用进程 |
+| **系统命令** | 执行只读命令（ps、gsettings 等） | 查询系统设置 |
+| **VLM 视觉** | 视觉定位元素、视觉断言、自主测试 | "点击桌面左下角的终端图标" |
+
+### 安装依赖
+
+MCP Server 为可选功能，需要 Python >= 3.10：
+
+```shell
+pip install youqu-framework[mcp]
+```
+
+### VLM 配置
+
+编辑 `setting/globalconfig.ini`，启用 VLM 并配置后端 API：
+
+```ini
+[vlm]
+VLM_ENABLED = true
+VLM_BASE_URL = https://api-inference.modelscope.cn/v1/
+VLM_MODEL = Qwen/Qwen3-VL-8B-Instruct
+VLM_API_KEY = your-api-key
+```
+
+VLM 需要 OpenAI 兼容的视觉语言模型 API（Ollama、ModelScope、vLLM 等），框架不内置模型。
+
+### 启动 MCP Server
+
+#### stdio 模式（本地子进程）
+
+```shell
+youqu manage.py mcp
+```
+
+适用于本地 AI 客户端通过 stdio 管道连接。
+
+#### Streamable HTTP 模式（远程连接）
+
+在测试机上启动 HTTP 服务：
+
+```shell
+youqu manage.py mcp --transport http --host 0.0.0.0 --port 8000
+```
+
+CLI 参数说明：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--transport` | `stdio` | `stdio`（本地子进程）/ `sse`（HTTP+SSE）/ `http`（Streamable HTTP，推荐远程） |
+| `--host` | `127.0.0.1` | 监听地址，远程连接需设为 `0.0.0.0` |
+| `--port` | `8000` | 监听端口 |
+
+### 客户端连接配置
+
+#### Claude（原生支持 HTTP）
+
+```bash
+claude mcp add --transport http youqu http://192.168.1.100:8000/mcp
+```
+
+#### OpenCode
+
+在项目 `opencode.json` 中配置 MCP server：
+
+```json
+{
+  "mcp": {
+    "youqu": {
+      "command": "youqu",
+      "args": ["manage.py", "mcp", "--transport", "http", "--host", "0.0.0.0", "--port", "8000"]
+    }
+  }
+}
+```
+
+或连接远程测试机：
+
+```json
+{
+  "mcp": {
+    "youqu-remote": {
+      "type": "http",
+      "url": "http://192.168.1.100:8000/mcp"
+    }
+  }
+}
+```
+
+#### SSH 隧道（安全内网连接）
+
+无需在测试机暴露端口，通过 SSH 隧道转发：
+
+```shell
+# 本地执行
+ssh -L 8000:localhost:8000 user@test-machine
+```
+
+然后本地客户端连接 `http://127.0.0.1:8000/mcp`。
+
+### 客户端兼容矩阵
+
+| AI 客户端 | stdio | Streamable HTTP |
+|-----------|:-----:|:---------------:|
+| Claude | ✅ | ✅ |
+| OpenCode | ✅ | ✅ |
+
 ## [贡献]()
 
 [贡献文档](https://youqu.uniontech.com/CONTRIBUTING.html)

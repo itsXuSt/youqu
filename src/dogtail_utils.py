@@ -28,6 +28,7 @@ try:
     GlobalConfig.NO_DOGTAIL = False
 except ModuleNotFoundError:
     GlobalConfig.NO_DOGTAIL = True
+    Node = None
 
 from src.mouse_key import MouseKey
 

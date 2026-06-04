@@ -96,10 +96,34 @@ class Manage:
 
         elif self.cmd_args[0] == SubCmd.mcp.value:
             sub_parser_mcp = subparsers.add_parser(SubCmd.mcp.value)
+            sub_parser_mcp.add_argument(
+                "--transport",
+                type=str,
+                default="stdio",
+                choices=["stdio", "sse", "http"],
+                help="传输模式: stdio(本地子进程), sse(HTTP+SSE), http(Streamable HTTP, 推荐)",
+            )
+            sub_parser_mcp.add_argument(
+                "--host",
+                type=str,
+                default="127.0.0.1",
+                help="监听地址 (仅 http/sse 模式有效, 默认 127.0.0.1)",
+            )
+            sub_parser_mcp.add_argument(
+                "--port",
+                type=int,
+                default=8000,
+                help="监听端口 (仅 http/sse 模式有效, 默认 8000)",
+            )
+            mcp_args = parser.parse_args(self.cmd_args)
             try:
                 from src.mcp.server import start
 
-                start()
+                start(
+                    transport=mcp_args.transport,
+                    port=mcp_args.port,
+                    host=mcp_args.host,
+                )
             except ImportError as exc:
                 logger.error(
                     f"MCP 模式需要 Python >=3.10 并安装 fastmcp: {exc}"
