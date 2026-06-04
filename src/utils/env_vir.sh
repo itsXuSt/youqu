@@ -64,7 +64,7 @@ env
 
 init_pip
 
-sudo pip3 install pipenv -i https://repo.huaweicloud.com/repository/pypi/simple > /tmp/env.log 2>&1
+sudo pip3 install --break-system-packages pipenv -i https://repo.huaweicloud.com/repository/pypi/simple > /tmp/env.log 2>&1
 if [ $? = 0 ]; then
     echo -e "pipenv\t安装成功 √"
 else
@@ -120,7 +120,7 @@ done
 pip_array=(
     pyscreeze==0.1.28
     PyAutoGUI==0.9.53
-    pytest==6.2.5
+    pytest
     pytest-rerunfailures==10.2
     pytest-timeout==2.1.0
     allure-pytest==2.9.45
@@ -132,7 +132,7 @@ pip_array=(
 
 if [ "${ENV_CUT_FLAG}" = "cut" ]; then
     pip_array=(
-        pytest==6.2.5
+        pytest
         pytest-rerunfailures==10.2
         pytest-timeout==2.1.0
         allure-pytest==2.9.45
@@ -174,12 +174,16 @@ fi
 
 pipenv run pip install -U auto_uos --extra-index-url ${pypi_mirror} -i http://10.20.54.182:8081 --trusted-host=10.20.54.182 \
 > /tmp/env.log 2>&1
-check_status auto_uos
-pip_show=$(pipenv run pip show auto_uos | grep Location)
-public_location=$(echo "${pip_show}" | cut -d ":" -f2 | python3 -c "s=input();print(s.strip())")
-sudo rm -rf ${ROOT_DIR}/public
-sudo cp -r ${public_location}/auto_uos ${ROOT_DIR}/public
-sudo chmod -R 777 ${ROOT_DIR}/public
+if [ $? = 0 ]; then
+    pip_show=$(pipenv run pip show auto_uos | grep Location)
+    public_location=$(echo "${pip_show}" | cut -d ":" -f2 | python3 -c "s=input();print(s.strip())")
+    sudo rm -rf ${ROOT_DIR}/public
+    sudo cp -r ${public_location}/auto_uos ${ROOT_DIR}/public
+    sudo chmod -R 777 ${ROOT_DIR}/public
+    echo -e "auto_uos\t安装成功 √ (public/ 已部署)"
+else
+    echo -e "auto_uos\t跳过 (内网私有包不可达, 不影响框架运行)"
+fi
 
 cd ${ROOT_DIR}
 rm -rf Pipfile

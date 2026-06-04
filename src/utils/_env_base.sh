@@ -79,8 +79,10 @@ system_env(){
          echo 'export QT_LINUX_ACCESSIBILITY_ALWAYS_ON=1' >> $HOME/.bashrc
     fi
     source $HOME/.bashrc
-    echo "cd ${ROOT_DIR}/src/depends/sniff/;python3 sniff" | sudo tee /usr/bin/sniff > /dev/null 2>&1
-    sudo chmod +x /usr/bin/sniff
+    if [ -d "${ROOT_DIR}/src/depends/sniff" ]; then
+        echo "cd ${ROOT_DIR}/src/depends/sniff/;python3 sniff" | sudo tee /usr/bin/sniff > /dev/null 2>&1
+        sudo chmod +x /usr/bin/sniff 2>/dev/null
+    fi
 
     gsettings set org.gnome.desktop.interface toolkit-accessibility true  > /dev/null 2>&1
     sudo systemctl enable ssh  > /dev/null 2>&1
@@ -88,10 +90,10 @@ system_env(){
 }
 
 init_pip(){
-    sudo pip3 config set global.index-url ${pypi_mirror} > /tmp/env.log 2>&1
-    sudo pip3 install -U pip > /tmp/env.log 2>&1
+    sudo pip3 config set global.index-url ${pypi_mirror} --break-system-packages > /tmp/env.log 2>&1
+    sudo pip3 install -U pip --break-system-packages > /tmp/env.log 2>&1
     sudo pip3 cache purge > /tmp/env.log 2>&1
-    sudo pip3 config set global.timeout 10000 > /tmp/env.log 2>&1
+    sudo pip3 config set global.timeout 10000 --break-system-packages > /tmp/env.log 2>&1
 }
 
 install_py_deb(){

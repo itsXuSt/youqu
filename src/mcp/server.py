@@ -25,6 +25,34 @@ except ImportError:
     print("Install it with: pip install fastmcp")
     sys.exit(1)
 
+# YouQu framework exceptions inherit BaseException, not Exception.
+# Bare "except Exception" cannot catch them — must use a combined tuple.
+_TOOL_ERRORS = (Exception,)
+try:
+    from src.custom_exception import (
+        ApplicationError,
+        ApplicationStartError,
+        ElementExpressionError,
+        ElementNotFound,
+        GetWindowInformation,
+        NoIconOfThisSize,
+        NoSetReferencePoint,
+        NoSuchSkipMethodFound,
+        NoSuchWindowPositionParameter,
+        OcrTextRecognitionError,
+        ParamError,
+        ShellExecutionFailed,
+        TemplateElementFound,
+    )
+    _TOOL_ERRORS = (Exception, ApplicationError, ApplicationStartError,
+                    ElementExpressionError, ElementNotFound,
+                    GetWindowInformation, NoIconOfThisSize,
+                    NoSetReferencePoint, NoSuchSkipMethodFound,
+                    NoSuchWindowPositionParameter, OcrTextRecognitionError,
+                    ParamError, ShellExecutionFailed, TemplateElementFound)
+except ImportError:
+    pass
+
 
 @asynccontextmanager
 async def youqu_lifespan(server: FastMCP) -> AsyncIterator[dict]:
@@ -66,7 +94,7 @@ def atspi_find_element(app_name: str, expr: str, index: int = 0) -> dict:
         dog = DogtailUtils(name=app_name)
         element = dog.find_element_by_attr(expr, index)
         return {"success": True, "element": str(element)}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -84,7 +112,7 @@ def atspi_find_and_click(app_name: str, expr: str, index: int = 0) -> dict:
         dog = DogtailUtils(name=app_name)
         dog.find_element_by_attr_and_click(expr, index)
         return {"success": True}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -102,7 +130,7 @@ def atspi_find_and_right_click(app_name: str, expr: str, index: int = 0) -> dict
         dog = DogtailUtils(name=app_name)
         dog.find_element_by_attr_and_right_click(expr, index)
         return {"success": True}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -119,7 +147,7 @@ def atspi_get_children_text(app_name: str, element_expr: str) -> dict:
         dog = DogtailUtils(name=app_name)
         text = dog.get_element_children_text(element_expr)
         return {"success": True, "text": text}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -139,7 +167,7 @@ def mouse_click(x: int, y: int) -> dict:
     try:
         MouseKey.click(_x=x, _y=y)
         return {"success": True}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -155,7 +183,7 @@ def mouse_right_click(x: int, y: int) -> dict:
     try:
         MouseKey.right_click(_x=x, _y=y)
         return {"success": True}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -171,7 +199,7 @@ def mouse_double_click(x: int, y: int) -> dict:
     try:
         MouseKey.double_click(_x=x, _y=y)
         return {"success": True}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -188,7 +216,7 @@ def mouse_move_to(x: int, y: int, duration: float = 0.4) -> dict:
     try:
         MouseKey.move_to(_x=x, _y=y, duration=duration)
         return {"success": True}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -203,7 +231,7 @@ def mouse_scroll(amount: int) -> dict:
     try:
         MouseKey.mouse_scroll(amount_of_scroll=amount)
         return {"success": True}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -218,7 +246,7 @@ def keyboard_type_text(text: str) -> dict:
     try:
         MouseKey.input_message(text)
         return {"success": True}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -238,25 +266,26 @@ def keyboard_press_key(key: str) -> dict:
     try:
         MouseKey().press_key(key)
         return {"success": True}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
 @mcp.tool
-def keyboard_hot_key(*keys: str) -> dict:
-    """Press a key combination. Examples: hot_key('ctrl', 'c'), hot_key('alt', 'Tab').
+def keyboard_hot_key(keys: str) -> dict:
+    """Press a key combination. Examples: keys="ctrl,c" or keys="alt,Tab".
     Dangerous key combos (alt+F4, ctrl+alt+del, etc.) are blocked.
 
     Args:
-        keys: Key names to combine
+        keys: Comma-separated key names, e.g. "ctrl,c" or "alt,Tab"
     """
-    if _check_dangerous_keys(keys):
+    key_list = [k.strip() for k in keys.split(",") if k.strip()]
+    if _check_dangerous_keys(key_list):
         return {"success": False, "error": "Dangerous key combo blocked"}
     from src.mouse_key import MouseKey
     try:
-        MouseKey.hot_key(*keys)
+        MouseKey.hot_key(*key_list)
         return {"success": True}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -267,7 +296,7 @@ def get_screen_size() -> dict:
     try:
         w, h = MouseKey.screen_size()
         return {"success": True, "width": w, "height": h}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -288,7 +317,7 @@ def window_get_info(app_name: str, config_path: str = "") -> dict:
         ui = ButtonCenter(app_name=app_name, config_path=_validate_config_path(config_path))
         info = ui.window_info()
         return {"success": True, "info": str(info)}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -305,7 +334,7 @@ def window_focus(app_name: str, config_path: str = "") -> dict:
         ui = ButtonCenter(app_name=app_name, config_path=_validate_config_path(config_path))
         ui.focus_windows(app_name)
         return {"success": True}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -322,7 +351,7 @@ def window_get_center(app_name: str, config_path: str = "") -> dict:
         ui = ButtonCenter(app_name=app_name, config_path=_validate_config_path(config_path))
         cx, cy = ui.window_center()
         return {"success": True, "x": cx, "y": cy}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -339,7 +368,7 @@ def window_get_count(app_name: str, config_path: str = "") -> dict:
         ui = ButtonCenter(app_name=app_name, config_path=_validate_config_path(config_path))
         count = ui.get_windows_number(app_name)
         return {"success": True, "count": count}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -360,7 +389,7 @@ def assert_element_exists(expr: str) -> dict:
         return {"success": True, "assertion": "PASS"}
     except AssertionError as e:
         return {"success": True, "assertion": "FAIL", "reason": str(e)}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -377,7 +406,7 @@ def assert_element_not_exists(expr: str) -> dict:
         return {"success": True, "assertion": "PASS"}
     except AssertionError as e:
         return {"success": True, "assertion": "FAIL", "reason": str(e)}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -394,7 +423,7 @@ def assert_process_running(app_name: str) -> dict:
         return {"success": True, "assertion": "PASS"}
     except AssertionError as e:
         return {"success": True, "assertion": "FAIL", "reason": str(e)}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -412,7 +441,7 @@ def assert_window_count(app_name: str, expected: int) -> dict:
         return {"success": True, "assertion": "PASS"}
     except AssertionError as e:
         return {"success": True, "assertion": "FAIL", "reason": str(e)}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -430,7 +459,7 @@ def assert_image_exists(image_path: str, rate: float = 0.8) -> dict:
         return {"success": True, "assertion": "PASS"}
     except AssertionError as e:
         return {"success": True, "assertion": "FAIL", "reason": str(e)}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -447,7 +476,7 @@ def assert_file_exists(file_path: str) -> dict:
         return {"success": True, "assertion": "PASS"}
     except AssertionError as e:
         return {"success": True, "assertion": "FAIL", "reason": str(e)}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -515,7 +544,7 @@ def system_run_command(command: str) -> dict:
     try:
         output = CmdCtl.run_cmd(command)
         return {"success": True, "output": output}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -537,7 +566,7 @@ def system_kill_process(process_name: str) -> dict:
     try:
         CmdCtl.kill_process(process_name)
         return {"success": True}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -552,7 +581,7 @@ def system_get_process_status(process_name: str) -> dict:
     try:
         status = CmdCtl.get_process_status(process_name)
         return {"success": True, "running": status}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -589,7 +618,7 @@ def dbus_get_property(
         else:
             value = dbus.get_session_properties_value(property_name)
         return {"success": True, "value": str(value)}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -629,7 +658,7 @@ def vlm_click(description: str) -> dict:
             "confidence": result.confidence,
             "message": result.message,
         }
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -666,7 +695,7 @@ def vlm_assert_visual(assertion: str, expected: str) -> dict:
                 "reason": result.reason,
             }
         return {"success": False, "error": "VLM returned no result"}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -699,7 +728,7 @@ def vlm_agent_run(instruction: str, max_iterations: int = 10) -> dict:
         agent = VLMAgent(locator, config)
         result = agent.run(instruction, max_iterations=max_iterations)
         return result
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -720,7 +749,7 @@ def screenshot_save() -> dict:
         return {"success": True, "path": path}
     except ImportError:
         return {"success": False, "error": "screenshot module not available"}
-    except Exception as e:
+    except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
 
@@ -737,4 +766,8 @@ def start(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.1"):
         port: HTTP port (only used when transport='sse' or 'http').
         host: Bind address (only used when transport='sse' or 'http').
     """
-    mcp.run(transport=cast(Any, transport), port=port, host=host)
+    kwargs = {"transport": transport}
+    if transport != "stdio":
+        kwargs["port"] = port
+        kwargs["host"] = host
+    mcp.run(**kwargs)
