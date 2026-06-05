@@ -8,6 +8,7 @@ _PYTEST_INI = """\
 [pytest]
 addopts = -s -vv --no-header --tb=auto -r fEs --color=auto
 testpaths = case
+yaml_files = yaml
 minversion = 6.2.5
 """
 
@@ -88,6 +89,46 @@ class Test{camel}(BaseCase):
         pass
 """
 
+_SAMPLE_YAML = r"""# YAML test case for {name}
+#
+# Executed via youqu run — collected by pytest and dispatched to YouQu framework APIs.
+# Actions supported: session_start, session_stop, keyboard_press, keyboard_hot_key,
+#   keyboard_type, mouse_click, mouse_right_click, mouse_double_click, mouse_scroll,
+#   mouse_drag, element_action, element_set_value, main_menu_comb, context_menu_comb,
+#   dbus_call, dbus_get_property, wait, screenshot
+# Asserts supported: element_visible, element_not_visible, element_numbers,
+#   element_text, process_running, process_not_running, file_exists, file_not_exists,
+#   image_exist, image_not_exist, ocr_exist, ocr_not_exist, window_size, dbus_property
+
+name: "{name} 基础启动测试"
+app: "{name}"
+screenshot: false
+
+setup:
+  - action: session_start
+    command: "{name}"
+    wait: 3.0
+
+steps:
+  - name: "验证主窗口可见"
+    action: element_action
+    selector:
+      role: "frame"
+    do: "click"
+    assert:
+      - type: element_visible
+        selector:
+          role: "frame"
+
+  - name: "验证进程运行中"
+    assert:
+      - type: process_running
+        app: "{name}"
+
+teardown:
+  - action: session_stop
+"""
+
 
 def _snake_to_camel(name):
     return "".join(word.capitalize() for word in name.split("_"))
@@ -110,6 +151,7 @@ def generate(name, output_dir="."):
     (target / "case").mkdir(parents=True, exist_ok=True)
     (target / "widget" / "pic_res").mkdir(parents=True, exist_ok=True)
     (target / "report").mkdir(parents=True, exist_ok=True)
+    (target / "yaml").mkdir(parents=True, exist_ok=True)
 
     _write(target, "pytest.ini", _PYTEST_INI)
     _write(target, "conftest.py", _CONFTEST_PY)
@@ -137,6 +179,8 @@ def generate(name, output_dir="."):
     )
 
     _write(target, "widget/pic_res/.gitkeep", "")
+    _write(target, "yaml/.gitkeep", "")
+    _write(target, f"yaml/test_{name}_001.yaml", _SAMPLE_YAML.format(name=name))
 
     print(f"Generated autotest/ in {target}")
     print(f"  App: {name}")

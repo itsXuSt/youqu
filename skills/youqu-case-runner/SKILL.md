@@ -1,10 +1,11 @@
 ---
 name: youqu-case-runner
-version: "0.2.0"
+version: "0.3.0"
 description: >
   Execute YouQu test cases via natural language, translating intent to
-  `youqu run` CLI arguments.
-  Use whenever: 运行用例, 执行测试, 跑用例, run test cases,
+  `youqu run` CLI arguments. Supports both Python (.py) and YAML (.yaml)
+  test formats.
+  Use whenever: 运行用例, 执行测试, 跑用例, YAML用例, run test cases,
   run L1 tests, run smoke tests, youqu run, 执行autotest.
 ---
 
@@ -41,6 +42,9 @@ ls autotest/
 
 # List available test files
 ls autotest/case/test_*.py
+
+# List available YAML test files
+ls autotest/yaml/test_*.yaml
 ```
 
 **Resolution order**: user-provided `-a <path>` → CWD `autotest/` → ask user.
@@ -96,11 +100,14 @@ xdotool search --name "终端" || echo "FAILED: window not found"
 Before executing, understand what tests exist:
 
 ```bash
-# List test files in the autotest project
+# List Python test files in the autotest project
 ls autotest/case/test_*.py
+
+# List YAML test files (auto-collected by youqu run)
+ls autotest/yaml/test_*.yaml
 ```
 
-Present test counts to the user before running.
+Present test counts (both .py and .yaml) to the user before running.
 
 ---
 
@@ -115,6 +122,9 @@ Present test counts to the user before running.
 | "指定报告目录" | `youqu run --alluredir=./my_report` |
 | "用例文件列表" | `youqu run -f cases/list.txt` |
 | "传递 pytest 参数" | `youqu run [any pytest args...]` |
+| "运行 YAML 用例" | `youqu run` (YAML files auto-collected) |
+| "只收集 YAML 用例" | `youqu run --collect-only` (lists both .py and .yaml) |
+| "运行 yaml/ 目录" | `youqu run yaml/` (pass through to pytest) |
 
 Extra arguments after known flags are passed through to pytest directly.
 See `youqu run --help` for available flags.
@@ -150,6 +160,9 @@ youqu run [args...]
 2. Compose pytest: `-c autotest/pytest.ini --rootdir autotest/`
 3. Auto-add `--alluredir autotest/report/` if not specified
 4. `pytest.main(pytest_args)` → execute collected test cases
+
+Both `.py` and `.yaml` files are collected. YAML files must be in the directory
+configured by `yaml_files` in `pytest.ini`.
 5. Post-test: Allure report written to `autotest/report/`
 
 ---
@@ -205,3 +218,29 @@ This helps distinguish: environment issue vs product bug vs script defect.
 5. **`youqu run` is lightweight**: It delegates directly to pytest with
    `-c autotest/pytest.ini --rootdir autotest/`. Extra arguments (e.g. `-k`,
    `-m`, `--lf`) pass through to pytest.
+
+6. **YAML cases need yaml_files in pytest.ini**: The generated `autotest/pytest.ini`
+   includes `yaml_files = yaml`. If you create a project without the skeleton,
+   add this line manually.
+
+---
+
+## YAML Test Support (NEW)
+
+`youqu run` now collects `.yaml` test files alongside `.py` files. YAML is the preferred
+format for AI-generated tests — simpler syntax, built-in app lifecycle, wait_for conditions.
+
+YAML files reside in `autotest/yaml/`. They're auto-discovered when `yaml_files = yaml`
+is in `pytest.ini`. Each `.yaml` file becomes a pytest test item.
+
+Supported actions: session_start, session_stop, keyboard_press, keyboard_hot_key,
+keyboard_type, mouse_click, mouse_right_click, mouse_double_click, mouse_scroll,
+mouse_drag, element_action, element_set_value, main_menu_comb, context_menu_comb,
+dbus_call, dbus_get_property, wait, screenshot.
+
+Supported asserts: element_visible, element_not_visible, element_numbers,
+element_text, process_running, process_not_running, file_exists, file_not_exists,
+image_exist, image_not_exist, ocr_exist, ocr_not_exist, window_size, dbus_property.
+
+For complex branching logic, Python cases (`autotest/case/test_*.py`) remain available
+as a fallback.

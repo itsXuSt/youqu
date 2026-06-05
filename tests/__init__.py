@@ -96,3 +96,20 @@ _mcp_spec = _ilu.spec_from_file_location("src.mcp.server", str(_mcp_path))
 _mcp_mod = _ilu.module_from_spec(_mcp_spec)
 sys.modules["src.mcp.server"] = _mcp_mod
 _mcp_spec.loader.exec_module(_mcp_mod)
+
+_yaml_test_pkg = _types.ModuleType("src.yaml_test")
+_yaml_test_pkg.__path__ = [str(_project_root / "src" / "yaml_test")]
+_yaml_test_pkg.__package__ = "src.yaml_test"
+_yaml_test_pkg.__file__ = str(_project_root / "src" / "yaml_test" / "__init__.py")
+sys.modules["src.yaml_test"] = _yaml_test_pkg
+setattr(sys.modules["src"], "yaml_test", _yaml_test_pkg)
+
+_src_yaml_test = _project_root / "src" / "yaml_test"
+for _fname in ["parser", "executor", "assertions", "wait", "collector"]:
+    _fpath = _src_yaml_test / "{}.py".format(_fname)
+    _spec = _ilu.spec_from_file_location("src.yaml_test.{}".format(_fname), str(_fpath))
+    _mod = _ilu.module_from_spec(_spec)
+    _mod.__package__ = "src.yaml_test"
+    sys.modules["src.yaml_test.{}".format(_fname)] = _mod
+    _spec.loader.exec_module(_mod)
+    setattr(_yaml_test_pkg, _fname, _mod)
