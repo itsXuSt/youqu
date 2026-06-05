@@ -108,7 +108,7 @@ config.py, conftest.py).
 
 **Prevention**: After generation, run:
 ```bash
-youqu manage.py csvctl --pyid2csv -a apps/autotest_<app>
+python3 ${YOUQU_MANAGE} csvctl --pyid2csv -a apps/autotest_<app>
 ```
 
 **Recovery**: Run the csvctl command above. Then optionally run pmsctl to sync PMS IDs.

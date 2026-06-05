@@ -137,5 +137,5 @@ Skip reasons in `@pytest.mark.skip(reason="...")` should match the CSV skip
 column format. After generating test files, manually update the CSV or run:
 
 ```bash
-youqu manage.py csvctl --pyid2csv -a apps/autotest_<app>
+python3 ${YOUQU_MANAGE} csvctl --pyid2csv -a apps/autotest_<app>
 ```
