@@ -1,0 +1,86 @@
+# SPDX-FileCopyrightText: 2026 UnionTech Software Technology Co., Ltd.
+#
+# SPDX-License-Identifier: GPL-2.0-only
+
+"""YouQu CLI entry point.
+
+Registered as console_scripts: youqu = "youqu.cli.main:main"
+"""
+
+import argparse
+import sys
+from pathlib import Path
+
+_YOUQU_PKG = Path(__file__).resolve().parent.parent
+
+_INJECT_PATHS = (
+    _YOUQU_PKG,
+    _YOUQU_PKG / "setting",
+    _YOUQU_PKG / "src" / "depends",
+)
+
+
+def _inject_paths():
+    for p in _INJECT_PATHS:
+        p_str = str(p)
+        if p_str not in sys.path:
+            sys.path.insert(0, p_str)
+
+
+def main():
+    _inject_paths()
+    parser = argparse.ArgumentParser(
+        prog="youqu",
+        description="YouQu test framework CLI",
+    )
+    sub = parser.add_subparsers(dest="command")
+
+    # youqu make <name>
+    p_make = sub.add_parser("make", help="Generate autotest/ skeleton")
+    p_make.add_argument("name", help="App name (e.g. terminal)")
+    p_make.add_argument("--dir", default=".", help="Output directory (default: CWD)")
+
+    # youqu run [pytest args...]
+    p_run = sub.add_parser("run", help="Run tests from autotest/")
+    p_run.add_argument("-a", "--app", default="", help="Override autotest path")
+
+    # youqu mcp
+    p_mcp = sub.add_parser("mcp", help="Start MCP server")
+    p_mcp.add_argument(
+        "--transport",
+        default="stdio",
+        choices=["stdio", "sse", "http"],
+        help="Transport protocol (default: stdio)",
+    )
+    p_mcp.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
+    p_mcp.add_argument("--port", type=int, default=8000, help="HTTP port (default: 8000)")
+
+    # youqu startproject <name>
+    p_sp = sub.add_parser("startproject", help="Create project from template")
+    p_sp.add_argument("name", nargs="?", help="Project name (default: youqu)")
+
+    args, extra = parser.parse_known_args()
+
+    if args.command == "make":
+        from youqu.cli.make import generate
+        generate(args.name, args.dir)
+    elif args.command == "run":
+        from youqu.cli.run import run
+        run(autotest_path=args.app or None, extra=extra)
+    elif args.command == "mcp":
+        try:
+            from youqu.src.mcp.server import start as mcp_start
+            mcp_start(transport=args.transport, port=args.port, host=args.host)
+        except ImportError:
+            print("MCP server requires: pip install youqu-framework[mcp]")
+            sys.exit(1)
+    elif args.command == "startproject":
+        from youqu.src.startproject import cli
+        cli()
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

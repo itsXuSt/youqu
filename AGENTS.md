@@ -60,6 +60,12 @@ youqu/
 │   ├── git/                # Git 子命令 (clone/commit统计/健康检查)
 │   ├── depends/            # 内嵌第三方库 (dogtail, sniff, wayland_autotool 等)
 │   └── utils/              # 环境部署脚本
+├── cli/                  # CLI 命令 (youqu console_scripts)
+│   ├── main.py            # argparse 路由入口
+│   ├── make.py            # youqu make 骨架生成
+│   └── run.py             # youqu run 执行逻辑
+├── plugin/               # pytest 插件 (entry_points.pytest11)
+│   └── __init__.py        # sys.path 注入 + 环境变量
 ├── setting/            # 配置
 │   ├── globalconfig.py  # 全局配置加载器 (读取 globalconfig.ini)
 │   ├── globalconfig.ini  # 主配置文件 (12 个 section)
@@ -76,7 +82,18 @@ youqu/
 
 ## 命令
 
-### 测试执行
+### CLI 命令 (pip install youqu-framework 后可用)
+```bash
+youqu make <name>                              # 生成 autotest/ 骨架
+youqu run                                       # 执行 autotest/ 下测试
+youqu run -k "keyword"                          # 关键词过滤 (透传 pytest)
+youqu run --alluredir=./report                  # 覆盖报告路径
+youqu mcp                                       # 启动 MCP server (stdio)
+youqu mcp --transport http --host 0.0.0.0 --port 8066  # HTTP 模式
+youqu startproject <name>                       # 创建项目 (PO 模式脚手架)
+```
+
+### 测试执行 (manage.py，传统流程)
 ```bash
 youqu manage.py run                           # 本地执行 (读取 globalconfig.ini 配置)
 youqu manage.py run -a apps/autotest_xxx       # 指定 APP 工程

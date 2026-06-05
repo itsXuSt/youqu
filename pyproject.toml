@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "youqu-framework"
-version = "2.14.4"
+version = "2.15.0"
 authors = [
     { name = "wangpeng", email = "781757836@qq.com" },
 ]
@@ -19,16 +19,40 @@ classifiers = [
 ]
 
 dependencies = [
+    "funnylog",
+    "pytest>=6.2.5",
+    "allure-pytest==2.9.45",
+    "allure-custom",
+    "image-center",
+    "pdocr-rpc",
+    "PyAutoGUI==0.9.53",
+    "pyscreeze==0.1.28",
+    "pytest-rerunfailures==10.2",
+    "pytest-timeout==2.1.0",
+    "tomli; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]
+webui = ["playwright"]
+remote = ["zerorpc"]
+mcp = ["fastmcp", "httpx"]
 
 [project.scripts]
-youqu-startproject = "youqu.startproject:cli"
+youqu = "youqu.cli.main:main"
+youqu-startproject = "youqu.src.startproject:cli"
+
+[project.entry-points.pytest11]
+youqu = "youqu.plugin"
 
 [tool.hatch.build.targets.wheel]
-packages = [
-    "/youqu",
+sources = {"" = "youqu"}
+only-include = [
+    "src",
+    "setting",
+    "cli",
+    "plugin",
+    "conftest.py",
+    "__init__.py",
 ]
 
 [project.urls]
