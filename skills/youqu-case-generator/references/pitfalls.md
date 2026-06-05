@@ -89,29 +89,27 @@ self.dog.element_click("常规")
 **Recovery**: Add explicit waits after every UI-triggering action.
 
 
-## P7: startapp Modifies Templates
+## P7: `youqu make` Creates the Skeleton
 
-**Root cause**: Sub-agents regenerate Widget files that `startapp` already created.
+**Root cause**: Sub-agents regenerate Widget files that `youqu make` already created.
 
-**Manifestation**: Duplicate/conflicting files, or files missing `${VAR}` substitution.
+**Manifestation**: Duplicate/conflicting files, or files missing proper class names.
 
-**Prevention**: Always run `startapp` first (Step 2), then generate Widget/test files.
-Never regenerate files that `startapp` already created (base_widget.py, base_case.py,
-config.py, conftest.py).
+**Prevention**: Always run `youqu make <name>` first (Step 2), then generate only
+the additional Widget/test files. Never regenerate files that `youqu make` already
+created (base_widget.py, base_case.py, conftest.py, pytest.ini, config.ini).
 
 
-## P8: CSV Must Reflect Generated Cases
+## P8: No CSV or PMS in autotest Skeleton
 
-**Root cause**: New test files exist but CSV doesn't have corresponding rows.
+**Root cause**: Sub-agents assume a CSV label file or PMS integration exists.
 
-**Manifestation**: Framework's tag system doesn't apply to new cases (no skip, no PMS sync).
+**Manifestation**: References to `terminal.csv`, `TerminalAssert`, `pmsctl`,
+or `csvctl` that don't exist in the `autotest/` directory.
 
-**Prevention**: After generation, run:
-```bash
-python3 ${YOUQU_MANAGE} csvctl --pyid2csv -a apps/autotest_<app>
-```
-
-**Recovery**: Run the csvctl command above. Then optionally run pmsctl to sync PMS IDs.
+**Prevention**: The `youqu make` skeleton has no CSV label file, no PMS
+integration, and no `_assert.py`. Skip management uses `@pytest.mark.skip`
+directly in test files.
 
 
 ## P9: D-Bus Service Name vs App Name Confusion
@@ -158,7 +156,7 @@ is empty or doesn't exist.
 **Manifestation**: `FileNotFoundError` or `NoSectionError` when Widget.__init__()
 tries to load the config.
 
-**Prevention**: Ensure `startapp` creates the `widget/ui.ini` file. If Widget
+**Prevention**: Ensure `youqu make` creates the `widget/ui.ini` file. If Widget
 methods don't use ButtonCenter, remove the `config_path` parameter from
 `Src.__init__()` call in `BaseWidget.__init__()`.
 

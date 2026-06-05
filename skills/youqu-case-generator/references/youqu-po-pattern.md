@@ -10,9 +10,8 @@ Widget Layer (operations):
 
 Assert Layer (verification):
   src.assert_common.AssertCommon
-    └── <app>_assert.py::<App>Assert
-         └── case/base_case.py::BaseCase(APP_NAME="xxx")
-              └── case/test_<case>_<nnn>.py::Test<Case>
+    └── case/base_case.py::BaseCase(APP_NAME="xxx")
+         └── case/test_<case>_<nnn>.py::Test<Case>
 ```
 
 ## Src Base Class — Available Methods

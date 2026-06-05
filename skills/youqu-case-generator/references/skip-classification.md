@@ -131,11 +131,7 @@ When multiple categories match, use the highest priority skip reason:
 
 *Priority 8-10: flagged for manual review, not auto-skipped.
 
-## CSV Label Integration
+## Note
 
-Skip reasons in `@pytest.mark.skip(reason="...")` should match the CSV skip
-column format. After generating test files, manually update the CSV or run:
-
-```bash
-python3 ${YOUQU_MANAGE} csvctl --pyid2csv -a apps/autotest_<app>
-```
+The `youqu make` skeleton does not include a CSV label file. All skip
+management uses `@pytest.mark.skip(reason="...")` directly in test files.

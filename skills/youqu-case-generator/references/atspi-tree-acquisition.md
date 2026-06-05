@@ -158,7 +158,7 @@ From the captured tree, record:
 
 ## Persist Results
 
-Save to `apps/autotest_<app>/docs/at-spi-tree.md` with:
+Save to `autotest/docs/at-spi-tree.md` with:
 - Environment info (date, XDG_SESSION_TYPE, app version)
 - Full element tables per UI state
 - Known limitations encountered

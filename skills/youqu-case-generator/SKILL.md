@@ -1,12 +1,10 @@
 ---
 name: youqu-case-generator
-version: "0.1.0"
+version: "0.2.0"
 description: >
-  Generate YouQu Python test files from xlsx/csv or feature descriptions.
-  Uses youqu-mcp for real AT-SPI selectors to produce PO-pattern code.
-  Non-automatable cases get @pytest.mark.skip (never omitted).
-  Triggers: xlsx转py用例, csv转py用例, 生成YouQu用例, generate YouQu tests,
-  批量生成测试用例, deepin-terminal用例生成.
+  Generate YouQu Python test projects from xlsx/csv or feature descriptions.
+  Use whenever: xlsx转py用例, csv转py用例, 生成YouQu用例, generate YouQu tests,
+  批量生成测试用例, youqu make, 创建autotest, AT-SPI用例生成.
 ---
 
 # YouQu Case Generator
@@ -60,48 +58,44 @@ precondition, steps, expected, priority, case_type.
 
 **feature mode**: Gather context manually from PR descriptions, git diffs, etc.
 
-### Step 2: Create YouQu APP Project
+### Step 2: Create YouQu Project Skeleton
 
-Locate the installed YouQu framework and create the PO-pattern skeleton:
+Generate a standalone `autotest/` skeleton with the new CLI:
 
 ```bash
-YOUQU_ROOT=$(pip show youqu-framework --format=json | \
-  python3 -c "import sys,json; print(json.load(sys.stdin).get('Location',''))")
-[ -f "${YOUQU_ROOT}/manage.py" ] || YOUQU_ROOT="${YOUQU_ROOT}/.."
-[ -f "${YOUQU_ROOT}/manage.py" ] || { echo "manage.py not found"; exit 1; }
-
-python3 ${YOUQU_ROOT}/manage.py startapp autotest_<app_name>
+youqu make <name>
 ```
 
-This creates `apps/autotest_<app_name>/` with standard PO structure:
+This creates an `autotest/` directory in the current working directory with
+standard PO structure:
+
 ```
-apps/autotest_<app_name>/
+autotest/
 ├── widget/
-│   ├── base_widget.py    # extends Src
-│   ├── <app>_widget.py   # main widget export
-│   ├── ui.ini            # ButtonCenter coordinates
-│   └── pic_res/          # image templates
+│   ├── __init__.py          # exports <Name>Widget
+│   ├── base_widget.py       # extends Src
+│   ├── <name>_widget.py     # main widget class
+│   ├── ui.ini               # ButtonCenter coordinates
+│   └── pic_res/             # image templates
 ├── case/
-│   ├── base_case.py      # extends AssertCommon chain
-│   └── test_mycase_001.py
-├── <app>.csv             # CSV label file
-├── <app>_assert.py       # custom assertions
-├── config.py
-├── config.ini
-├── control
-└── conftest.py
+│   ├── __init__.py          # exports BaseCase
+│   ├── base_case.py         # extends AssertCommon
+│   └── test_<name>_001.py   # sample test
+├── conftest.py              # app-specific fixtures
+├── pytest.ini               # pytest configuration
+├── config.ini               # app configuration
+└── report/                  # test reports output
 ```
 
-Note: `startapp` performs these template substitutions:
-- `${APP_NAME}` = full name (e.g. `autotest_deepin_terminal`)
-- `${app_name}` = stripped prefix (e.g. `deepin_terminal`)
-- `${APP-NAME}` = hyphenated (e.g. `deepin-terminal`)
-- `${AppName}` = `title().replace("_","")` → `Deepinterminal` (no spaces)
-- `${FIXEDCSVTITLE}` = all FixedCsvTitle enum headers joined by comma
+**Naming**: `youqu make terminal` creates `autotest/` with:
+- `BaseCase.APP_NAME = "terminal"`
+- `BaseWidget.APP_NAME = "terminal"`
+- `BaseWidget.DESC = "/usr/bin/terminal"`
+- Widget class: `TerminalWidget`
+- Sample test: `TestTerminal.test_terminal_001`
 
-**Important**: The template CSV `mycase.csv-tpl` is NOT auto-renamed by startapp.
-Rename it manually to match your test naming (e.g. `terminal.csv` if tests are
-`test_terminal_xxx.py`).
+**Customize `DESC`** in `base_widget.py` if the binary path differs
+(e.g. `/usr/bin/deepin-terminal`).
 
 ### Step 3: Acquire Live AT-SPI Tree
 
@@ -116,7 +110,7 @@ names and structure — without it, generated code would guess at selectors.
 - Primary: `youqu-mcp_atspi_find_element` / `youqu-mcp_screenshot_save`
 - Fallback: pyatspi script (see reference doc) for DTK apps with internal class names
 - Capture each UI state separately (main window, menu, dialogs, search, etc.)
-- Save to `apps/autotest_<app>/docs/at-spi-tree.md`
+- Save to `autotest/docs/at-spi-tree.md`
 
 ### Step 4: Classify and Batch
 
@@ -129,7 +123,7 @@ names and structure — without it, generated code would guess at selectors.
 For each module with automatable cases, generate a Widget file:
 
 ```python
-from apps.autotest_<app>.widget.base_widget import BaseWidget
+from autotest.widget.base_widget import BaseWidget
 from src import log
 
 @log
@@ -159,8 +153,8 @@ Src/AssertCommon methods.
 For automatable cases:
 
 ```python
-from apps.autotest_<app>.case.base_case import BaseCase
-from apps.autotest_<app>.widget.<module>_widget import <Module>Widget
+from autotest.case.base_case import BaseCase
+from autotest.widget.<module>_widget import <Module>Widget
 
 class Test<CaseName>(BaseCase):
 
@@ -177,7 +171,7 @@ For non-automatable cases:
 
 ```python
 import pytest
-from apps.autotest_<app>.case.base_case import BaseCase
+from autotest.case.base_case import BaseCase
 
 class Test<CaseName>(BaseCase):
 
@@ -198,7 +192,7 @@ class Test<CaseName>(BaseCase):
 ### Step 7: Verify
 
 ```bash
-cd ${YOUQU_APP_ROOT} && python3 ${YOUQU_MANAGE} run -a apps/autotest_<app> --collect-only
+cd autotest && youqu run --collect-only
 ```
 
 Check:
@@ -222,8 +216,8 @@ For multi-module generation, dispatch one sub-agent per batch in parallel.
    Target app: <app_name>. Working dir: <project_root>.
 
 2. EXPECTED OUTCOME:
-   - <count> Python files in apps/autotest_<app>/case/
-   - 1 Widget file in apps/autotest_<app>/widget/<module>_widget.py
+   - <count> Python files in autotest/case/
+   - 1 Widget file in autotest/widget/<module>_widget.py
    - File naming: test_<name>_<nnn>.py (<nnn>=3-digit padded batch position)
    - Non-automatable: @pytest.mark.skip + pass body
 
@@ -232,7 +226,7 @@ For multi-module generation, dispatch one sub-agent per batch in parallel.
 4. MUST DO:
    - Read the JSON batch file for case data
    - Read existing base_widget.py and base_case.py for inheritance reference
-   - Read apps/autotest_<app>/docs/at-spi-tree.md for real element names
+   - Read autotest/docs/at-spi-tree.md for real element names
    - Use youqu-mcp for AT-SPI tree acquisition (window_focus, atspi_find_element, screenshot_save)
    - If atspi_find_element fails, use pyatspi fallback (see @references/atspi-tree-acquisition.md)
    - Map operations to concrete Widget methods using real AT-SPI element names
@@ -241,13 +235,13 @@ For multi-module generation, dispatch one sub-agent per batch in parallel.
 
 5. MUST NOT DO:
    - Modify framework source (src/, setting/, conftest.py)
-   - Modify files outside apps/autotest_<app>/
+   - Modify files outside autotest/
    - Invent element names without MCP verification
    - Generate "pass" stubs for automatable cases
    - Hardcode absolute paths
 
 6. CONTEXT:
-   - PO inheritance: Src → BaseWidget → <Module>Widget, AssertCommon → <App>Assert → BaseCase → Test
+   - PO inheritance: Src → BaseWidget → <Module>Widget, AssertCommon → BaseCase → Test
    - Skip classification rules: @references/skip-classification.md
    - Assertion/Src methods: @references/youqu-po-pattern.md
    - MCP tools: @references/mcp-tool-reference.md
