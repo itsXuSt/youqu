@@ -106,8 +106,11 @@ names and structure — without it, generated code would guess at selectors.
 
 **Key points:**
 - Set environment: `DISPLAY`, `AT_SPI_BUS_ADDRESS`, `QT_ACCESSIBILITY`
-- Verify via `youqu-mcp_window_focus` and `youqu-mcp_window_get_info`
-- Primary: `youqu-mcp_atspi_find_element` / `youqu-mcp_screenshot_save`
+- Verify via `window_focus` and `window_get_info`
+- Pass `config_path="autotest/widget/ui.ini"` to `window_*` tools if ui.ini exists
+- Primary: `atspi_find_element` / `atspi_get_children_text` / `screenshot_save`
+- Interactive: `atspi_find_and_click` / `atspi_find_and_right_click` (trigger menus, dialogs)
+- Status: `window_get_count` / `system_get_process_status`
 - Fallback: pyatspi script (see reference doc) for DTK apps with internal class names
 - Capture each UI state separately (main window, menu, dialogs, search, etc.)
 - Save to `autotest/docs/at-spi-tree.md`
@@ -141,6 +144,7 @@ class <Module>Widget(BaseWidget):
 2. **OCR** — fallback for elements without AT-SPI attributes
 3. **ButtonCenter (ui.ini)** — for fixed-layout elements
 4. **Image recognition** — last resort, maintenance-heavy
+5. **VLM (vlm_click)** — AI vision fallback when all above fail (requires VLM API)
 
 **Method naming**: `click_<target>_by_<strategy>()`, `get_<target>_<prop>()`,
 `input_<target>()`, `switch_<target>()`, `select_<target>()`, `wait_<target>()`.
@@ -227,11 +231,13 @@ For multi-module generation, dispatch one sub-agent per batch in parallel.
    - Read the JSON batch file for case data
    - Read existing base_widget.py and base_case.py for inheritance reference
    - Read autotest/docs/at-spi-tree.md for real element names
-   - Use youqu-mcp for AT-SPI tree acquisition (window_focus, atspi_find_element, screenshot_save)
+   - Use MCP tools for AT-SPI tree acquisition and verification (see tool list below)
    - If atspi_find_element fails, use pyatspi fallback (see @references/atspi-tree-acquisition.md)
    - Map operations to concrete Widget methods using real AT-SPI element names
    - Follow naming: file ID == method ID
    - Non-automatable → @pytest.mark.skip(reason="..."), never omit
+   - **Generated Python code MUST use YouQu framework API (Src/DogtailUtils/ButtonCenter),
+     NOT MCP tool calls.** MCP tools are for the agent's exploration workflow only.
 
 5. MUST NOT DO:
    - Modify framework source (src/, setting/, conftest.py)
@@ -268,7 +274,7 @@ See `@references/pitfalls.md` for the complete list. Critical ones:
 | File | Purpose |
 |------|---------|
 | `@references/youqu-po-pattern.md` | Inheritance chain, Src methods, assertions, Widget conventions |
-| `@references/mcp-tool-reference.md` | youqu-mcp tool reference with parameters and usage |
+| `@references/mcp-tool-reference.md` | MCP tool reference with parameters and usage |
 | `@references/skip-classification.md` | Full skip rules with detection patterns |
 | `@references/atspi-tree-acquisition.md` | AT-SPI tree capture procedure (env, launch, dump, persist) |
 | `@references/pitfalls.md` | Complete pitfalls list with root causes |

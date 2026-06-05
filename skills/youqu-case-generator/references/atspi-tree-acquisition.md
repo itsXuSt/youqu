@@ -32,6 +32,15 @@ AT_SPI_BUS_ADDRESS=$(ss -lxp 2>/dev/null | grep at-spi | grep -oP 'unix:path=\K[
 
 ## Launch the App
 
+**MCP (preferred)**:
+```
+system_kill_process(process_name="<app_name>")
+app_launch(command="<app_executable> [args]", wait_seconds=3)
+# Example: app_launch(command="/usr/bin/deepin-reader /path/to/doc.pdf", wait_seconds=3)
+```
+
+**Bash fallback**:
+
 ```bash
 pkill -9 <app_name> 2>/dev/null; sleep 1
 
@@ -48,25 +57,28 @@ sleep 3
 Use youqu-mcp tools:
 
 ```
-youqu-mcp_window_focus(app_name="<app_name>")
-youqu-mcp_window_get_info(app_name="<app_name>")
+window_focus(app_name="<app_name>")
+window_get_info(app_name="<app_name>")
 ```
 
 If `window_focus` succeeds and `get_info` returns window geometry, the app is ready.
 
-## Primary Method: youqu-mcp
+## Primary Method: MCP
 
 ```
+# Full tree dump (quickest way to get all elements)
+atspi_dump_tree(app_name="<app_name>")
+
 # Find elements by AT-SPI path expression
-youqu-mcp_atspi_find_element(app_name="<app_name>", expr="$/push button")
-youqu-mcp_atspi_find_element(app_name="<app_name>", expr="<element_name>")
-youqu-mcp_atspi_find_and_click(app_name="<app_name>", expr="<element_name>")
+atspi_find_element(app_name="<app_name>", expr="$/push button")
+atspi_find_element(app_name="<app_name>", expr="<element_name>")
+atspi_find_and_click(app_name="<app_name>", expr="<element_name>")
 
 # Get children text (for list/tree views)
-youqu-mcp_atspi_get_children_text(app_name="<app_name>", element_expr="$/<app_name>//list view")
+atspi_get_children_text(app_name="<app_name>", element_expr="$/<app_name>//list view")
 
 # Screenshot for visual reference
-youqu-mcp_screenshot_save()
+screenshot_save()
 ```
 
 **AT-SPI path expression syntax:**

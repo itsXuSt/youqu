@@ -6,13 +6,17 @@
 """YouQu MCP Server - expose desktop automation tools via MCP protocol."""
 
 import os
+import re
 import sys
+import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from typing import Any, cast
 
 os.environ.setdefault("DISPLAY", ":0")
+logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
+logging.root.setLevel(logging.WARNING)
 
 _project_root = Path(__file__).resolve().parent.parent.parent
 if str(_project_root) not in sys.path:
@@ -147,6 +151,23 @@ def atspi_get_children_text(app_name: str, element_expr: str) -> dict:
         dog = DogtailUtils(name=app_name)
         text = dog.get_element_children_text(element_expr)
         return {"success": True, "text": text}
+    except _TOOL_ERRORS as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def atspi_dump_tree(app_name: str) -> dict:
+    """Dump the full AT-SPI accessibility tree of an application.
+
+    Args:
+        app_name: Application name
+    """
+    from src.dogtail_utils import DogtailUtils
+    try:
+        dog = DogtailUtils(name=app_name)
+        node = dog.app_element()
+        tree_text = node.dump(type="plain")
+        return {"success": True, "tree": tree_text}
     except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
@@ -372,6 +393,32 @@ def window_get_count(app_name: str, config_path: str = "") -> dict:
         return {"success": False, "error": str(e)}
 
 
+@mcp.tool
+def window_close(app_name: str, config_path: str = "") -> dict:
+    """Close an application window gracefully.
+
+    Attempts to close via AT-SPI close action first (cross-protocol), then
+    falls back to xdotool (X11 only).
+
+    Args:
+        app_name: Application name
+        config_path: Path to the UI config file (ui.ini), must be within project dir
+    """
+    from src.dogtail_utils import DogtailUtils
+    try:
+        dog = DogtailUtils(name=app_name)
+        node = dog.app_element()
+        for action in node.actions:
+            if action == "close":
+                node.doActionNamed("close")
+                return {"success": True, "method": "atspi_action"}
+        from src.cmdctl import CmdCtl
+        CmdCtl.run_cmd(f"xdotool search --name {app_name} windowclose")
+        return {"success": True, "method": "xdotool"}
+    except _TOOL_ERRORS as e:
+        return {"success": False, "error": str(e)}
+
+
 # ============================================================
 # Assertion Tools
 # ============================================================
@@ -483,7 +530,8 @@ def assert_file_exists(file_path: str) -> dict:
 _ALLOWED_QUERY_COMMANDS = frozenset([
     "dpkg-query", "ps", "pgrep", "which", "whereis",
     "gsettings", "dbus-send", "dconf", "lsusb", "lspci",
-    "xrandr", "xdpyinfo", "fc-list", "locale",
+    "xrandr", "xdpyinfo", "fc-list", "locale", "ls", "cat", "find",
+    "env", "echo", "ss",
 ])
 
 _PROTECTED_PROCESSES = frozenset([
@@ -506,7 +554,6 @@ def _check_dangerous_keys(keys) -> bool:
     return combo in _DANGEROUS_KEY_COMBOS
 
 
-_MAX_IMAGE_BYTES = 20 * 1024 * 1024
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 
@@ -533,7 +580,6 @@ def system_run_command(command: str) -> dict:
     Args:
         command: Shell command to execute (restricted to allowed commands)
     """
-    import re as _re
     parts = command.strip().split(maxsplit=1)
     if not parts:
         return {"success": False, "error": "Empty command"}
@@ -556,9 +602,8 @@ def system_kill_process(process_name: str) -> dict:
     Args:
         process_name: Process name to kill
     """
-    import re as _re
     base = os.path.basename(process_name).strip()
-    if not _re.match(r"^[\w\-.]+$", base):
+    if not re.match(r"^[\w\-.]+$", base):
         return {"success": False, "error": "Invalid process name"}
     if base in _PROTECTED_PROCESSES or any(base.startswith(p) for p in _PROTECTED_PROCESSES):
         return {"success": False, "error": "Protected process '{}' cannot be killed".format(base)}
@@ -585,6 +630,33 @@ def system_get_process_status(process_name: str) -> dict:
         return {"success": False, "error": str(e)}
 
 
+@mcp.tool
+def app_launch(command: str, wait_seconds: int = 3) -> dict:
+    """Launch a desktop application in background.
+
+    Args:
+        command: Full command with arguments (e.g. '/usr/bin/deepin-reader /path/to/doc.pdf')
+        wait_seconds: Seconds to wait for the window to appear (default 3, max 30)
+    """
+    import shlex
+    parts = shlex.split(command)
+    base = os.path.basename(parts[0]).strip()
+    if not re.match(r"^[\w\-.]+$", base):
+        return {"success": False, "error": "Invalid command name"}
+    if base in _PROTECTED_PROCESSES or any(base.startswith(p) for p in _PROTECTED_PROCESSES):
+        return {"success": False, "error": "Protected process '{}' cannot be launched".format(base)}
+    wait_seconds = min(max(wait_seconds, 0), 30)
+    from src.cmdctl import CmdCtl
+    try:
+        CmdCtl.run_cmd(f"nohup {command} &>/dev/null &")
+        if wait_seconds > 0:
+            import time
+            time.sleep(wait_seconds)
+        return {"success": True}
+    except _TOOL_ERRORS as e:
+        return {"success": False, "error": str(e)}
+
+
 # ============================================================
 # DBus Tools
 # ============================================================
@@ -607,6 +679,8 @@ def dbus_get_property(
         property_name: Property name to read
     """
     from src.dbus_utils import DbusUtils
+    if bus_type not in ("session", "system"):
+        return {"success": False, "error": "bus_type must be 'session' or 'system'"}
     try:
         dbus = DbusUtils(
             dbus_name=service,
@@ -740,15 +814,15 @@ def vlm_agent_run(instruction: str, max_iterations: int = 10) -> dict:
 def screenshot_save() -> dict:
     """Take a screenshot of the entire screen and save to evidence directory."""
     try:
-        from src.vlm.config import VLMConfig  # type: ignore[import-untyped]
         from src.vlm.screenshot import capture_for_vlm  # type: ignore[import-untyped]
-
-        config = VLMConfig()
-        path = str(config.evidence_dir / "screenshot.png")
-        capture_for_vlm(output_path=path)
-        return {"success": True, "path": path}
     except ImportError:
         return {"success": False, "error": "screenshot module not available"}
+    try:
+        evidence_dir = _PROJECT_ROOT / "report" / "vlm_evidence"
+        evidence_dir.mkdir(parents=True, exist_ok=True)
+        path = str(evidence_dir / "screenshot.png")
+        capture_for_vlm(output_path=path)
+        return {"success": True, "path": path}
     except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
 
@@ -766,6 +840,9 @@ def start(transport: str = "stdio", port: int = 8000, host: str = "127.0.0.1"):
         port: HTTP port (only used when transport='sse' or 'http').
         host: Bind address (only used when transport='sse' or 'http').
     """
+    logging.getLogger("fastmcp").setLevel(logging.WARNING)
+    logging.getLogger("mcp").setLevel(logging.WARNING)
+    logging.root.setLevel(logging.WARNING)
     kwargs = {"transport": transport}
     if transport != "stdio":
         kwargs["port"] = port

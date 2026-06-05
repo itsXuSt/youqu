@@ -64,32 +64,30 @@ The application binary can be:
 4. Wait for window to appear
 5. Verify the window is focused/foreground
 
-```bash
-# Example: launch deepin-terminal from a custom build
-APP_BIN="/path/to/build/bin/deepin-terminal"
+**MCP tools (preferred if connected)**:
+```
+system_kill_process(app_name="deepin-terminal")
+app_launch(command="/usr/bin/deepin-terminal", wait_seconds=3)
+system_get_process_status(process_name="deepin-terminal")
+window_focus(app_name="deepin-terminal")
+window_get_info(app_name="deepin-terminal")
+# Add config_path if ui.ini exists:
+# window_focus(app_name="deepin-terminal", config_path="autotest/widget/ui.ini")
+```
 
-# Kill existing instance
+**Bash fallback (if MCP not available)**:
+```bash
+APP_BIN="/path/to/build/bin/deepin-terminal"
 pkill -f deepin-terminal || true
 sleep 1
-
-# Launch in background
 nohup ${APP_BIN} &>/dev/null &
-sleep 3  # Wait for window to appear
-
-# Verify process is running
+sleep 3
 pgrep -f $(basename ${APP_BIN}) || echo "FAILED: app not running"
-
-# Verify window is visible (via X11)
 xdotool search --name "终端" || echo "FAILED: window not found"
 ```
 
-**For Wayland**: Replace `xdotool` with `wlr-randr` or D-Bus Autotool for
-window checks. The app project's `globalconfig.ini` `[basic] IS_WAYLAND` flag
-determines the display server protocol.
-
-**If the test suite covers multiple applications**: Each test case's Widget
-method handles its own app launch. But the primary application should still be
-pre-launched here for the first case to find its target.
+> **Note**: MCP window tools handle X11/Wayland protocol differences internally.
+> No manual protocol switching needed.
 
 ---
 
@@ -176,6 +174,20 @@ Skipped:
 
 Reports are also written to `autotest/report/` (allure/, json/, xml/, logs/).
 
+### Failure Diagnosis (MCP, optional)
+
+When tests fail, use MCP tools to gather diagnostic evidence:
+
+```
+screenshot_save()                                    # capture current screen
+window_get_info(app_name="deepin-terminal")          # window state
+window_get_count(app_name="deepin-terminal")         # stray dialogs?
+assert_process_running(app_name="deepin-terminal")   # app crashed?
+atspi_find_element(app_name="deepin-terminal", expr="$/expected-element")
+```
+
+This helps distinguish: environment issue vs product bug vs script defect.
+
 ---
 
 ## Pitfalls
@@ -188,8 +200,7 @@ Reports are also written to `autotest/report/` (allure/, json/, xml/, logs/).
 
 3. **Long execution**: Full app suites can run for hours. Consider scope before running.
 
-4. **X11 vs Wayland**: Window verification commands differ. Check the project's
-   `globalconfig.ini [basic] IS_WAYLAND = true/false` to choose the right tool.
+4. **X11/Wayland**: MCP window tools handle both protocols. No manual switching.
 
 5. **`youqu run` is lightweight**: It delegates directly to pytest with
    `-c autotest/pytest.ini --rootdir autotest/`. Extra arguments (e.g. `-k`,
