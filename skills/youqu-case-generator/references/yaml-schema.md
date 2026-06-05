@@ -1,7 +1,82 @@
 # YAML Test Case Schema Reference
 
-Complete reference for YouQu YAML test case format — all actions, assertions, and
-selector patterns supported by the YAML executor (`src/yaml_test/executor.py`).
+Complete reference for YouQu YAML test case format — all actions, assertions,
+element registry (elements.yaml), and ref-based element resolution.
+
+## Elements Registry (MANDATORY)
+
+`autotest/yaml/elements.yaml` is the single source of truth for all UI elements
+referenced by test cases. Every `ref` in test YAML must resolve to an entry here.
+
+### Format
+
+```yaml
+# Element aliases for <app-name>
+app: <app-name>
+
+elements:
+  # ===== AT-SPI elements (name/role) =====
+  # Used by: element_action, element_set_value, asserts
+  ok_button:
+    name: "确定"
+  file_dialog:
+    name: "选择文件"
+    role: "dialog"
+  settings_tab:
+    name: "设置"
+    role: "page tab"
+
+  # ===== Coordinate elements (x/y) =====
+  # Used by: mouse_click, mouse_right_click, mouse_double_click, mouse_drag
+  app_center:
+    x: 500
+    y: 300
+  toolbar_button:
+    x: 250
+    y: 45
+
+  # ===== Menu navigation (menu) =====
+  # Used by: main_menu_comb
+  # Keyboard arrow-key navigation (↑↓ for items, ←→ for submenus, Enter to confirm)
+  open_file:
+    menu: ["文件", "打开"]
+  preferences:
+    menu: ["编辑", "首选项"]
+
+  # ===== Context menu (x/y + menu) =====
+  # Used by: context_menu_comb
+  # Right-click at (x,y), then keyboard-navigate to menu item
+  context_copy:
+    x: 450
+    y: 200
+    menu: ["复制"]
+  context_delete:
+    x: 450
+    y: 250
+    menu: ["更多", "删除"]
+
+  # ===== Element + menu (click element first, then menu) =====
+  # Used by: main_menu_comb
+  # Click the element, then keyboard-navigate to menu item
+  help_menu:
+    name: "帮助"
+    role: "menu"
+    menu: ["关于"]
+
+# Legacy inline definitions (deprecated, prefer elements.yaml)
+# Inline selector/x/y/items in test YAML is NOT supported —
+# all element definitions must be in elements.yaml
+```
+
+### Element Type Reference
+
+| Fields | Used By | Description |
+|--------|---------|-------------|
+| `name`, `role` | element_action, element_set_value, assert selectors | AT-SPI element lookup |
+| `x`, `y` | mouse_click, mouse_right_click, mouse_double_click, mouse_drag | Coordinate-based actions |
+| `menu` | main_menu_comb | Keyboard menu navigation |
+| `x`, `y`, `menu` | context_menu_comb | Right-click + keyboard menu |
+| `name`, `role`, `menu` | main_menu_comb | Click element + keyboard menu |
 
 ## Top-Level Structure
 
@@ -20,19 +95,29 @@ setup:
 steps:
   - name: "步骤描述"
     action: <action_type>
+    ref: <element_alias>    # references elements.yaml entry
     # step-specific params (see Action Reference below)
     wait_after: 500      # ms delay after step (optional)
-    wait_for:            # poll-until condition (optional)
+    wait_for:            # poll-until condition (optional, uses inline selectors)
       selector: {...}
       timeout: 5000
       interval: 200
-    assert:              # assertions after step (optional)
+    assert:              # assertions after step (optional, uses inline selectors)
       - type: <assert_type>
         # assert-specific params
 
 teardown:
   - action: session_stop
 ```
+
+**Ref resolution**: All actions use `ref` to reference elements.yaml entries.
+Inline `selector`, `x`, `y`, `items` are **not allowed** in test YAML — this
+prevents element definitions from being scattered across multiple test files.
+The executor resolves `ref` to the corresponding elements.yaml entry at runtime.
+
+**Exception**: `wait_for` and `assert` blocks use inline selectors. These target
+transient UI state (dialogs, notifications, dynamic content) that is situational,
+not globally registered elements.
 
 ## Action Reference
 
@@ -55,29 +140,30 @@ teardown:
 
 | Action | Parameters | Description |
 |--------|-----------|-------------|
-| `mouse_click` | `x` (int), `y` (int) | Left click at coordinates |
-| `mouse_right_click` | `x` (int), `y` (int) | Right click at coordinates |
-| `mouse_double_click` | `x` (int), `y` (int) | Double click at coordinates |
+| `mouse_click` | `ref` (str) | Left click — resolve x/y from elements.yaml |
+| `mouse_right_click` | `ref` (str) | Right click — resolve x/y from elements.yaml |
+| `mouse_double_click` | `ref` (str) | Double click — resolve x/y from elements.yaml |
 | `mouse_scroll` | `amount` (int) | Scroll (±amount, positive=up) |
-| `mouse_drag` | `x` (int), `y` (int) | Drag to coordinates |
+| `mouse_drag` | `ref` (str) | Drag to coordinates — resolve x/y from elements.yaml |
 
 ### AT-SPI Element Actions
 
 | Action | Parameters | Description |
 |--------|-----------|-------------|
-| `element_action` | `selector` (dict), `do` (str) | AT-SPI operation: `"click"`, `"right_click"`, `"double_click"` |
-| `element_set_value` | `selector` (dict), `text` (str) | Set text value on input element |
+| `element_action` | `ref` (str), `do` (str) | AT-SPI operation: `"click"`, `"right_click"`, `"double_click"` |
+| `element_set_value` | `ref` (str), `text` (str) | Set text value on input element |
+
+Both resolve `ref` from elements.yaml to get the element's `name`/`role` attributes.
 
 ### Menu Navigation (Keyboard-based)
 
 | Action | Parameters | Description |
 |--------|-----------|-------------|
-| `main_menu_comb` | `items` (list of str) | Keyboard-navigate main menu, e.g. `["文件", "打开"]` |
-| `context_menu_comb` | `x` (int), `y` (int), `items` (list of str) | Right-click at (x,y) + keyboard-navigate context menu |
+| `main_menu_comb` | `ref` (str) | Keyboard-navigate menu. Resolve from elements.yaml (`menu` field or `name`+`menu`). |
+| `context_menu_comb` | `ref` (str) | Right-click + keyboard-navigate context menu. Resolve from elements.yaml (`x`/`y`+`menu` fields). |
 
 Menu navigation uses arrow keys (↑↓←→) and Enter — no mouse hover needed.
-The framework opens the menu, navigates to each item level, opens/expands submenus,
-and confirms on the final item. See `src/menu_nav.py`.
+See `src/menu_nav.py`.
 
 ### D-Bus
 
@@ -139,10 +225,10 @@ and confirms on the final item. See `src/menu_nav.py`.
 |-------------|-----------|-------------|
 | `dbus_property` | `value` (dict) | D-Bus property equals expected (`value.expected` field) |
 
-## Selector Format
+## Selector Format (assert / wait_for only)
 
-Selectors are JSON-like dictionaries (YAML mapping), NOT AT-SPI path expressions.
-The executor converts selectors to AT-SPI `find_element_by_attr` calls internally.
+Assert and wait_for blocks use inline selectors (not ref). These target
+transient or expected UI state — not globally registered elements.
 
 ### Simple Selectors
 
@@ -153,14 +239,14 @@ selector:
 
 # By AT-SPI role
 selector:
-  role: "push button"
+  role: "dialog"
 
-# Combined (name + role)
+# Combined
 selector:
   name: "确定"
   role: "push button"
 
-# By index (nth match in list)
+# By index
 selector:
   index: 0
 ```
@@ -173,8 +259,6 @@ selector:
 | `role` | str | AT-SPI role (e.g. `"push button"`, `"menu item"`) |
 | `description` | str | Description attribute |
 | `index` | int | Select nth match (0-based) |
-
-Unknown fields are added as generic AT-SPI attribute filters.
 
 ## Variable Substitution
 

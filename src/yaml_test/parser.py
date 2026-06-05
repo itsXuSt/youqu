@@ -29,6 +29,8 @@ from typing import Any, Optional
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from src.yaml_test.elements import load_elements, ElementError as ElementLoadError
+
 
 class Selector(BaseModel):
     """AT-SPI element selector."""
@@ -73,6 +75,7 @@ class ActionStep(BaseModel):
 
     action: str
     name: str = ""
+    ref: Optional[str] = None
     selector: Optional[Selector] = None
     do: Optional[str] = None
     items: Optional[list] = None
@@ -102,6 +105,7 @@ class TestCase(BaseModel):
     setup: list[ActionStep] = Field(default_factory=list)
     steps: list[ActionStep] = Field(default_factory=list)
     teardown: list[ActionStep] = Field(default_factory=list)
+    elements: dict[str, dict[str, Any]] = Field(default_factory=dict)
 
 
 _VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
@@ -149,4 +153,11 @@ def parse_testcase(path) -> TestCase:
     else:
         substituted = raw_data
 
-    return TestCase.model_validate(substituted)
+    testcase = TestCase.model_validate(substituted)
+
+    try:
+        testcase.elements = load_elements(file_path)
+    except ElementLoadError:
+        raise
+
+    return testcase

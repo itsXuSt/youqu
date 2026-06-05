@@ -1,6 +1,6 @@
 ---
 name: youqu-case-generator
-version: "0.3.0"
+version: "0.4.0"
 description: >
   Generate YouQu test cases in YAML (primary) or Python (fallback) from xlsx/csv or
   feature descriptions. Use whenever: YAML用例生成, xlsx转py用例, csv转py用例,
@@ -84,12 +84,24 @@ precondition, steps, expected, priority, case_type.
 Generate a standalone `autotest/` skeleton with the new CLI:
 
 ```bash
-youqu make <name>
+youqu make <name>                  # YAML only (default)
+youqu make <name> --format py      # Python only (widget/case/ui.ini)
+youqu make <name> --format all     # Both YAML + Python
 ```
 
-This creates an `autotest/` directory in the current working directory with
-standard PO structure:
+**Default (yaml)** — YAML is the primary format. Only `yaml/` directory with `elements.yaml`:
+```
+autotest/
+├── yaml/
+│   ├── elements.yaml           # MANDATORY element registry
+│   └── test_<name>_001.yaml
+├── conftest.py
+├── pytest.ini
+├── config.ini
+└── report/
+```
 
+**py mode** — Python with Page Object:
 ```
 autotest/
 ├── widget/
@@ -102,43 +114,39 @@ autotest/
 │   ├── __init__.py          # exports BaseCase
 │   ├── base_case.py         # extends AssertCommon
 │   └── test_<name>_001.py   # sample test
-├── conftest.py              # app-specific fixtures
-├── pytest.ini               # pytest configuration
-├── config.ini               # app configuration
-├── report/                  # test reports output
-└── yaml/
-    └── test_<name>_001.yaml   # sample YAML test
+├── conftest.py
+├── pytest.ini
+├── config.ini
+├── ui.ini
+└── report/
 ```
 
+**all mode** — combined (both yaml/ and widget/case/ directories).
+
 **Naming**: `youqu make terminal` creates `autotest/` with:
-- `BaseCase.APP_NAME = "terminal"`
-- `BaseWidget.APP_NAME = "terminal"`
-- `BaseWidget.DESC = "/usr/bin/terminal"`
-- Widget class: `TerminalWidget`
-- Sample test: `TestTerminal.test_terminal_001`
+- `BaseCase.APP_NAME = "terminal"` (py mode only)
+- `BaseWidget.APP_NAME = "terminal"` (py mode only)
+- `BaseWidget.DESC = "/usr/bin/terminal"` (py mode only)
+- Widget class: `TerminalWidget` (py mode only)
+- Sample test: `TestTerminal.test_terminal_001` (py mode only)
 
-**Note**: `youqu make` now generates both `case/` (Python) and `yaml/` (YAML) directories.
+### Step 3: Acquire Live AT-SPI Tree → Populate elements.yaml
 
-**Customize `DESC`** in `base_widget.py` if the binary path differs
-(e.g. `/usr/bin/deepin-terminal`).
-
-### Step 3: Acquire Live AT-SPI Tree
-
-Launch the target app and capture its accessibility tree. This reveals real element
-names and structure — without it, generated code would guess at selectors.
+Launch the target app and capture its accessibility tree. The critical output is
+`autotest/yaml/elements.yaml` — the mandatory element registry that all YAML
+test cases reference via `ref`.
 
 **Full procedure**: See `@references/atspi-tree-acquisition.md`.
 
 **Key points:**
 - Set environment: `DISPLAY`, `AT_SPI_BUS_ADDRESS`, `QT_ACCESSIBILITY`
 - Verify via `window_focus` and `window_get_info`
-- Pass `config_path="autotest/widget/ui.ini"` to `window_*` tools if ui.ini exists
 - Primary: `atspi_find_element` / `atspi_get_children_text` / `screenshot_save`
 - Interactive: `atspi_find_and_click` / `atspi_find_and_right_click` (trigger menus, dialogs)
 - Status: `window_get_count` / `system_get_process_status`
 - Fallback: pyatspi script (see reference doc) for DTK apps with internal class names
 - Capture each UI state separately (main window, menu, dialogs, search, etc.)
-- Save to `autotest/docs/at-spi-tree.md`
+- **Populate `autotest/yaml/elements.yaml`** with the captured elements (see format below)
 
 ### Step 4: Classify and Batch
 
@@ -146,9 +154,9 @@ names and structure — without it, generated code would guess at selectors.
 2. Flag ambiguous cases for manual review
 3. Group automatable cases into batches of ≤10
 
-### Step 5: Generate Widget Methods (Per Module)
+### Step 5: Generate Widget Methods (Per Module) — Python Mode Only
 
-For each module with automatable cases, generate a Widget file:
+For py mode, generate Widget files. For each module with automatable cases:
 
 ```python
 from autotest.widget.base_widget import BaseWidget
@@ -233,7 +241,57 @@ Check:
 
 ### Step 8: Generate YAML Test Cases (Preferred)
 
-For automatable cases, generate YAML files in `autotest/yaml/`:
+For automatable cases, generate YAML files in `autotest/yaml/`.
+
+**Prerequisite**: `autotest/yaml/elements.yaml` must contain element aliases for all
+UI elements referenced by test cases. This file is mandatory — test cases use `ref` to
+reference elements, never inline selectors or coordinates.
+
+#### elements.yaml Format (MANDATORY)
+
+```yaml
+# Element aliases for <app-name>
+# All UI elements referenced by test cases must be registered here.
+# Supports: AT-SPI attributes (name/role), coordinates (x/y), and menu paths.
+app: <app-name>
+
+elements:
+  # AT-SPI elements
+  ok_button:
+    name: "确定"
+  dialog:
+    role: "dialog"
+  file_menu:
+    name: "文件"
+    role: "menu"
+  settings_tab:
+    name: "设置"
+    role: "page tab"
+
+  # Coordinate-based elements (right-click targets, fixed positions)
+  app_center:
+    x: 500
+    y: 300
+
+  # Menu navigation paths (keyboard arrow-key based)
+  open_file:
+    menu: ["文件", "打开"]
+
+  # Context menu paths (right-click + keyboard)
+  context_copy:
+    x: 100
+    y: 200
+    menu: ["复制"]
+```
+
+**Element type rules**:
+- `name`/`role` → AT-SPI element lookup (element_action, element_set_value, asserts)
+- `x`/`y` → coordinate-based actions (mouse_click, mouse_right_click, mouse_drag)
+- `menu` → keyboard menu navigation (main_menu_comb)
+- `x`/`y` + `menu` → context menu navigation (context_menu_comb)
+- `name`/`role` + `menu` → element_action click + keyboard menu (main_menu_comb from element)
+
+#### YAML Test Case Format
 
 ```yaml
 name: "测试用例标题"
@@ -248,10 +306,9 @@ setup:
     wait: 3.0
 
 steps:
-  - name: "步骤描述"
+  - name: "单击确定按钮"
     action: element_action
-    selector:
-      name: "按钮名"
+    ref: ok_button
     do: "click"
     wait_after: 500
     wait_for:
@@ -261,9 +318,21 @@ steps:
     assert:
       - type: element_visible
         selector:
-          name: "确认"
+          name: "成功"
 
-  - name: "DBus 验证"
+  - name: "右键点击打开菜单"
+    action: context_menu_comb
+    ref: context_copy
+
+  - name: "打开文件菜单"
+    action: main_menu_comb
+    ref: open_file
+
+  - name: "点击中心区域"
+    action: mouse_click
+    ref: app_center
+
+  - name: "DBus 属性验证"
     action: dbus_get_property
     value:
       bus_type: "session"
@@ -280,7 +349,11 @@ teardown:
   - action: session_stop
 ```
 
-**YAML Action Reference**:
+**Critical**: All YAML test cases use `ref` to reference elements.yaml entries.
+Inline `selector`, `x`, `y`, `items` are NOT allowed — they cause ambiguity and
+scatter element definitions across files.
+
+#### YAML Action Reference
 
 | Action | Key Parameters | Description |
 |--------|---------------|-------------|
@@ -289,21 +362,23 @@ teardown:
 | `keyboard_press` | `keys` | Single key or combo (e.g. "Return", "ctrl+a") |
 | `keyboard_hot_key` | `keys` | Key combination (e.g. "ctrl,c") |
 | `keyboard_type` | `text` | Type text string |
-| `mouse_click` | `x`, `y` | Left click at coordinates |
-| `mouse_right_click` | `x`, `y` | Right click at coordinates |
-| `mouse_double_click` | `x`, `y` | Double click at coordinates |
+| `mouse_click` | `ref` | Left click at coordinates (resolved from elements.yaml) |
+| `mouse_right_click` | `ref` | Right click at coordinates |
+| `mouse_double_click` | `ref` | Double click at coordinates |
 | `mouse_scroll` | `amount` | Scroll (positive=up) |
-| `mouse_drag` | `x`, `y` | Drag to coordinates |
-| `element_action` | `selector`, `do` | AT-SPI element operation (do: click/right_click/double_click) |
-| `element_set_value` | `selector`, `text` | Set text value on element |
-| `main_menu_comb` | `items` | Keyboard-navigate main menu (e.g. ["文件", "打开"]) |
-| `context_menu_comb` | `x`, `y`, `items` | Right-click + keyboard-navigate context menu |
-| `dbus_call` | `value` | Call D-Bus method (value: {bus_type, dbus_name, object_path, interface, method, args}) |
-| `dbus_get_property` | `value` | Read D-Bus property (value: {bus_type, dbus_name, object_path, interface, property}) |
+| `mouse_drag` | `ref` | Drag to coordinates |
+| `element_action` | `ref`, `do` | AT-SPI element operation (resolved from elements.yaml. do: click/right_click/double_click) |
+| `element_set_value` | `ref`, `text` | Set text value on element |
+| `main_menu_comb` | `ref` | Keyboard-navigate menu (resolved from elements.yaml) |
+| `context_menu_comb` | `ref` | Right-click + keyboard-navigate context menu |
+| `dbus_call` | `value` | Call D-Bus method |
+| `dbus_get_property` | `value` | Read D-Bus property |
 | `wait` | `wait` | Sleep in seconds |
 | `screenshot` | — | Capture screen |
 
-**YAML Assert Reference**:
+**Assert types for inline use** (still use inline `selector` for asserts within step):
+
+#### YAML Assert Reference
 
 | Assert Type | Key Parameters | Description |
 |-------------|---------------|-------------|
@@ -322,45 +397,24 @@ teardown:
 | `window_size` | `expected`, `actual` | Window dimensions match |
 | `dbus_property` | `value` | D-Bus property equals expected |
 
-**Selector format**: Selector can be:
-- `{name: "控件名"}` — match by accessible name
-- `{role: "push button"}` — match by AT-SPI role
-- `{name: "确定", role: "push button"}` — match by both
-- `{index: 0}` — nth match
+**Variable substitution**: Use `${VAR_NAME}` in any string field. Variables are defined in the
+top-level `vars:` section and substituted at parse time.
 
-**Variable substitution**: Use `${VAR_NAME}` in any string field. Variables are defined in the top-level `vars:` section and substituted at parse time.
-
-```yaml
-vars:
-  PDF_PATH: "/home/user/test.pdf"
-setup:
-  - action: session_start
-    command: "deepin-reader ${PDF_PATH}"
-```
-
-**Wait conditions**: Steps can have `wait_for` to poll until an element appears before executing:
+**Wait conditions**: Steps can have `wait_for` to poll until an element appears. Uses inline
+selectors (not ref) since wait_for target is transient UI state, not a registered element:
 
 ```yaml
 - action: element_action
-  selector: {name: "OK"}
+  ref: ok_button
   wait_for:
     selector: {role: "dialog"}
     timeout: 5000
     interval: 200
 ```
 
-**Naming**: YAML files follow the same naming convention as Python: `test_<name>_<nnn>.yaml`. The name in the YAML frontmatter must match the file name.
+**Naming**: YAML files follow `test_<name>_<nnn>.yaml`. The name field must match.
 
-**Non-automatable cases**: In YAML, non-automatable cases are documented with a comment header explaining the reason. The YAML itself can be a minimal stub:
-
-```yaml
-# NON-AUTOMATABLE: 触摸操作无法自动化
-name: "手势缩放测试"
-app: "app"
-setup: []
-steps: []
-teardown: []
-```
+**Non-automatable cases**: Documented with comment header, minimal stub body.
 
 ### Step 9: Verify
 
@@ -373,6 +427,7 @@ Check:
 - YAML: file count == automatable case count
 - Both YAML and Python cases appear in collection output
 - YAML files parse without YAML errors
+- elements.yaml contains all refs used by test cases
 - Non-automatable YAML cases are documented with reason comments
 - File name ID == method name ID for every Python case
 - All imports resolve
@@ -394,19 +449,22 @@ For multi-module generation, dispatch one sub-agent per batch in parallel.
 
 2. EXPECTED OUTCOME:
    - YAML files in autotest/yaml/ (preferred, for automatable cases)
+   - elements.yaml populated with all UI elements from AT-SPI tree
    - Python files in autotest/case/ (fallback, for complex cases)
    - <count> YAML or Python files total
-   - 1 Widget file in autotest/widget/<module>_widget.py
+   - 1 Widget file in autotest/widget/<module>_widget.py (py mode only)
    - YAML naming: test_<name>_<nnn>.yaml (<nnn>=3-digit padded batch position)
    - Python naming: test_<name>_<nnn>.py
    - Non-automatable: YAML stub with reason comment or @pytest.mark.skip + pass body
+   - YAML steps use ref (never inline selector/x/y) referencing elements.yaml
 
 3. REQUIRED TOOLS: read, write, edit
 
 4. MUST DO:
    - Generate YAML by default; use Python only for complex branching/loops
    - YAML must follow schema: name, app, setup, steps, teardown
-   - Each YAML step must have a meaningful action (never empty pass)
+   - Each YAML step must use ref (never inline selector/x/y/items)
+   - Populate elements.yaml with all UI elements from AT-SPI tree capture
    - Read the JSON batch file for case data
    - Read existing base_widget.py and base_case.py for inheritance reference
    - Read autotest/docs/at-spi-tree.md for real element names
@@ -449,10 +507,14 @@ See `@references/pitfalls.md` for the complete list. Critical ones:
    YAML than Python. Use Python only for complex branching.
 7. **YAML action/assert names must match the reference table.** Unknown types cause
    runtime errors. See Step 8 reference tables for supported types.
-8. **YAML selector format**: Use `{name: "text"}` with curly braces (dict), NOT
-   AT-SPI expr syntax `$/name/`. The executor converts selectors to AT-SPI expr internally.
-9. **Wait conditions**: Always add `wait_for` before steps that depend on UI state
+8. **YAML steps must use ref, NOT inline selector/x/y/items.** Inline definitions
+   scatter element info across files and cause ambiguity. All elements must be
+   registered in elements.yaml. The executor resolves ref at runtime.
+9. **elements.yaml is mandatory for YAML tests.** Missing elements.yaml causes
+   all ref-based steps to fail. It must exist in autotest/yaml/ alongside test files.
+10. **Wait conditions**: Always add `wait_for` before steps that depend on UI state
    changes (dialog opens, page loads, etc.). Set reasonable timeouts (3000-10000ms).
+   wait_for uses inline selectors (not ref) since it targets transient UI state.
 
 ---
 

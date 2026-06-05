@@ -44,13 +44,14 @@ class TestSelectorToExpr:
         assert selector_to_expr(sel) == "$/test_btn/"
 
 
-def _make_testcase(steps, setup=None, teardown=None, app="test-app"):
+def _make_testcase(steps, setup=None, teardown=None, app="test-app", elements=None):
     return TestCase(
         name="test",
         app=app,
         setup=setup or [],
         steps=steps,
         teardown=teardown or [],
+        elements=elements or {},
     )
 
 
@@ -322,3 +323,135 @@ class TestFailureHandling:
             result = StepExecutor(tc).run()
         assert not result.passed
         assert "session_stop" in teardown_called
+
+
+_STANDARD_ELEMENTS = {
+    "ok_button": {"name": "确定"},
+    "main_frame": {"role": "frame"},
+    "app_center": {"x": 500, "y": 300},
+    "file_menu": {"name": "文件", "menu": ["文件", "打开"]},
+    "context_pos": {"x": 100, "y": 200, "menu": ["复制", "粘贴"]},
+}
+
+
+class TestRefResolution:
+    """Tests for ref-based element resolution (preferred path)."""
+
+    @patch("src.yaml_test.executor._get_dog")
+    def test_ref_element_action(self, mock_get_dog):
+        element = MagicMock()
+        dog = MagicMock()
+        dog.find_element_by_attr.return_value = element
+        mock_get_dog.return_value = dog
+        tc = _make_testcase(
+            [ActionStep(action="element_action", ref="ok_button", do="click")],
+            elements=_STANDARD_ELEMENTS,
+        )
+        result = StepExecutor(tc).run()
+        assert result.passed
+        dog.find_element_by_attr.assert_called_once_with("$/确定/", 0)
+        element.click.assert_called_once()
+
+    @patch("src.yaml_test.executor._get_mk")
+    def test_ref_mouse_click(self, mock_get_mk):
+        mk = MagicMock()
+        mock_get_mk.return_value = mk
+        tc = _make_testcase(
+            [ActionStep(action="mouse_click", ref="app_center")],
+            elements=_STANDARD_ELEMENTS,
+        )
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mk.click.assert_called_once_with(500, 300)
+
+    @patch("src.yaml_test.executor._get_mk")
+    def test_ref_mouse_right_click(self, mock_get_mk):
+        mk = MagicMock()
+        mock_get_mk.return_value = mk
+        tc = _make_testcase(
+            [ActionStep(action="mouse_right_click", ref="app_center")],
+            elements=_STANDARD_ELEMENTS,
+        )
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mk.right_click.assert_called_once_with(500, 300)
+
+    @patch("src.yaml_test.executor._get_mk")
+    def test_ref_mouse_drag(self, mock_get_mk):
+        mk = MagicMock()
+        mock_get_mk.return_value = mk
+        tc = _make_testcase(
+            [ActionStep(action="mouse_drag", ref="app_center")],
+            elements=_STANDARD_ELEMENTS,
+        )
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mk.drag_to.assert_called_once_with(500, 300)
+
+    @patch("src.yaml_test.executor._get_dog")
+    def test_ref_missing_raises(self, mock_get_dog):
+        dog = MagicMock()
+        mock_get_dog.return_value = dog
+        tc = _make_testcase(
+            [ActionStep(action="element_action", ref="nonexistent", do="click")],
+            elements=_STANDARD_ELEMENTS,
+        )
+        result = StepExecutor(tc).run()
+        assert not result.passed
+        assert "nonexistent" in result.message
+        dog.find_element_by_attr.assert_not_called()
+
+    @patch("src.yaml_test.executor._get_dog")
+    @patch("src.yaml_test.executor._get_mk")
+    def test_ref_with_selectors(self, mock_get_mk, mock_get_dog):
+        """When both ref and legacy selector are present, ref wins."""
+        element = MagicMock()
+        dog = MagicMock()
+        dog.find_element_by_attr.return_value = element
+        mock_get_dog.return_value = dog
+        mk = MagicMock()
+        mock_get_mk.return_value = mk
+        tc = _make_testcase(
+            [
+                ActionStep(
+                    action="element_action",
+                    ref="ok_button",
+                    selector=Selector(name="SHOULD_NOT_USE_THIS"),
+                    do="click",
+                )
+            ],
+            elements=_STANDARD_ELEMENTS,
+        )
+        result = StepExecutor(tc).run()
+        assert result.passed
+        dog.find_element_by_attr.assert_called_once_with("$/确定/", 0)
+
+    @patch("src.yaml_test.executor._get_dog")
+    @patch("src.yaml_test.executor._get_mk")
+    def test_ref_with_xy(self, mock_get_mk, mock_get_dog):
+        """When both ref and x/y are present, ref wins (no ambiguity)."""
+        mk = MagicMock()
+        mock_get_mk.return_value = mk
+        tc = _make_testcase(
+            [
+                ActionStep(
+                    action="mouse_click",
+                    ref="app_center",
+                    x=9999,
+                    y=9999,
+                )
+            ],
+            elements=_STANDARD_ELEMENTS,
+        )
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mk.click.assert_called_once_with(500, 300)
+
+    def test_ref_without_elements_fails_gracefully(self):
+        tc = _make_testcase(
+            [ActionStep(action="element_action", ref="ok_button", do="click")],
+            elements={},  # no elements registered
+        )
+        result = StepExecutor(tc).run()
+        assert not result.passed
+        assert "ok_button" in result.message

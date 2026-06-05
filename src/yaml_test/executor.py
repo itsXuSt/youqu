@@ -14,6 +14,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
+from src.yaml_test.elements import resolve_ref
 from src.yaml_test.parser import ActionStep, TestCase
 
 
@@ -42,6 +43,39 @@ def selector_to_expr(selector: Any) -> str:
     if name:
         return f"$/{name}/"
     return "$/"
+
+
+def _resolve_step_attrs(step: ActionStep, elements: dict) -> dict:
+    """Resolve step.ref to element attributes dict, or fallback to legacy fields.
+
+    Priority: ``step.ref`` (looked up in elements.yaml) → inline ``step.selector``,
+    ``step.x``, ``step.y``, ``step.items``.  Never mixes the two paths.
+    """
+    if step.ref:
+        attrs = dict(resolve_ref(step.ref, elements))
+        if "x" not in attrs:
+            attrs.setdefault("x", 0)
+        if "y" not in attrs:
+            attrs.setdefault("y", 0)
+        if "menu" not in attrs:
+            attrs.setdefault("menu", [])
+        return attrs
+
+    # Legacy fallback — build attrs dict from inline fields
+    attrs: dict = {}
+    sel = step.selector
+    if sel is not None:
+        if hasattr(sel, "model_dump"):
+            attrs = sel.model_dump(exclude_none=True)
+        elif isinstance(sel, dict):
+            attrs = {k: v for k, v in sel.items() if v is not None}
+    if step.x is not None:
+        attrs["x"] = step.x
+    if step.y is not None:
+        attrs["y"] = step.y
+    if step.items is not None:
+        attrs["items"] = step.items
+    return attrs
 
 
 @dataclass
@@ -113,17 +147,20 @@ def _handle_keyboard_type(step: ActionStep, context: dict) -> None:
 
 def _handle_mouse_click(step: ActionStep, context: dict) -> None:
     mk = _get_mk(context)
-    mk.click(step.x, step.y)
+    attrs = _resolve_step_attrs(step, context.get("elements", {}))
+    mk.click(attrs.get("x", 0), attrs.get("y", 0))
 
 
 def _handle_mouse_right_click(step: ActionStep, context: dict) -> None:
     mk = _get_mk(context)
-    mk.right_click(step.x, step.y)
+    attrs = _resolve_step_attrs(step, context.get("elements", {}))
+    mk.right_click(attrs.get("x", 0), attrs.get("y", 0))
 
 
 def _handle_mouse_double_click(step: ActionStep, context: dict) -> None:
     mk = _get_mk(context)
-    mk.double_click(step.x, step.y)
+    attrs = _resolve_step_attrs(step, context.get("elements", {}))
+    mk.double_click(attrs.get("x", 0), attrs.get("y", 0))
 
 
 def _handle_mouse_scroll(step: ActionStep, context: dict) -> None:
@@ -133,14 +170,19 @@ def _handle_mouse_scroll(step: ActionStep, context: dict) -> None:
 
 def _handle_mouse_drag(step: ActionStep, context: dict) -> None:
     mk = _get_mk(context)
-    mk.drag_to(step.x, step.y)
+    attrs = _resolve_step_attrs(step, context.get("elements", {}))
+    mk.drag_to(attrs.get("x", 0), attrs.get("y", 0))
 
 
 def _handle_element_action(step: ActionStep, context: dict) -> None:
     app_name = context.get("app") or ""
     dog = _get_dog(context, app_name)
-    expr = selector_to_expr(step.selector)
-    idx = step.selector.index if step.selector and step.selector.index else 0
+    elements = context.get("elements") or {}
+
+    attrs = _resolve_step_attrs(step, elements)
+    name = attrs.get("name", "")
+    expr = f"$/{name}/" if name else "$/"
+    idx = attrs.get("index", 0)
     element = dog.find_element_by_attr(expr, idx)
     action = step.do or "click"
     if action == "click":
@@ -165,7 +207,11 @@ def _handle_element_set_value(step: ActionStep, context: dict) -> None:
     app_name = context.get("app") or ""
     dog = _get_dog(context, app_name)
     mk = _get_mk(context)
-    expr = selector_to_expr(step.selector)
+    elements = context.get("elements") or {}
+
+    attrs = _resolve_step_attrs(step, elements)
+    name = attrs.get("name", "")
+    expr = f"$/{name}/" if name else "$/"
     element = dog.find_element_by_attr(expr)
     element.click()
     mk.input_message(step.text or "")
@@ -177,9 +223,13 @@ def _handle_main_menu_comb(step: ActionStep, context: dict) -> None:
     except ImportError as e:
         raise ImportError(f"menu_nav module not available: {e}") from e
 
+    elements = context.get("elements") or {}
+    attrs = _resolve_step_attrs(step, elements)
+    items = attrs.get("menu", []) or attrs.get("items", [])
+
     nav = MenuNavigator(context.get("app"))
     nav.open_main_menu()
-    nav.select(step.items or [])
+    nav.select(items)
 
 
 def _handle_context_menu_comb(step: ActionStep, context: dict) -> None:
@@ -188,9 +238,15 @@ def _handle_context_menu_comb(step: ActionStep, context: dict) -> None:
     except ImportError as e:
         raise ImportError(f"menu_nav module not available: {e}") from e
 
+    elements = context.get("elements") or {}
+    attrs = _resolve_step_attrs(step, elements)
+    x = attrs.get("x", 0)
+    y = attrs.get("y", 0)
+    items = attrs.get("menu", []) or attrs.get("items", [])
+
     nav = MenuNavigator(context.get("app"))
-    nav.open_context_menu(step.x or 0, step.y or 0)
-    nav.select(step.items or [])
+    nav.open_context_menu(x, y)
+    nav.select(items)
 
 
 def _handle_dbus_call(step: ActionStep, context: dict) -> None:
@@ -281,6 +337,7 @@ class StepExecutor:
             "mk": None,
             "dog": None,
             "app_process": None,
+            "elements": testcase.elements,
         }
 
     def run(self) -> ExecutorResult:

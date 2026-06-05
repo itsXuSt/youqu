@@ -4,10 +4,25 @@
 
 from pathlib import Path
 
-_PYTEST_INI = """\
+_PYTEST_INI_YAML = """\
+[pytest]
+addopts = -s -vv --no-header --tb=auto -r fEs --color=auto
+testpaths = yaml
+yaml_files = yaml
+minversion = 6.2.5
+"""
+
+_PYTEST_INI_PY = """\
 [pytest]
 addopts = -s -vv --no-header --tb=auto -r fEs --color=auto
 testpaths = case
+minversion = 6.2.5
+"""
+
+_PYTEST_INI_ALL = """\
+[pytest]
+addopts = -s -vv --no-header --tb=auto -r fEs --color=auto
+testpaths = case yaml
 yaml_files = yaml
 minversion = 6.2.5
 """
@@ -92,6 +107,8 @@ class Test{camel}(BaseCase):
 _SAMPLE_YAML = r"""# YAML test case for {name}
 #
 # Executed via youqu run — collected by pytest and dispatched to YouQu framework APIs.
+# All element references use 'ref' to look up entries in elements.yaml.
+#
 # Actions supported: session_start, session_stop, keyboard_press, keyboard_hot_key,
 #   keyboard_type, mouse_click, mouse_right_click, mouse_double_click, mouse_scroll,
 #   mouse_drag, element_action, element_set_value, main_menu_comb, context_menu_comb,
@@ -112,8 +129,7 @@ setup:
 steps:
   - name: "验证主窗口可见"
     action: element_action
-    selector:
-      role: "frame"
+    ref: main_frame
     do: "click"
     assert:
       - type: element_visible
@@ -129,6 +145,29 @@ teardown:
   - action: session_stop
 """
 
+_ELEMENTS_YAML = """# Element registry for {name}
+#
+# This is the MANDATORY, single-source-of-truth registry for UI element
+# references used in YAML test cases.  Every ``ref`` in ``test_*.yaml``
+# must have a matching entry here.
+#
+# Each entry maps a logical alias to one or more of:
+#   name           — AT-SPI accessible name (preferred for selection)
+#   role           — AT-SPI role (e.g. "frame", "push button", "menu item")
+#   x, y           — screen coordinates (for mouse click / right-click)
+#   menu           — list of menu items (for keyboard menu navigation)
+#   index          — element index when multiple matches exist (default 0)
+#   accessible_id  — AT-SPI accessible ID (rarely needed)
+#
+# Regenerate by capturing the live AT-SPI tree:
+#   youqu mcp → atspi_find_element / atspi_get_children_text
+
+app: {name}
+elements:
+  main_frame:
+    role: "frame"
+"""
+
 
 def _snake_to_camel(name):
     return "".join(word.capitalize() for word in name.split("_"))
@@ -140,48 +179,60 @@ def _write(target, rel_path, content):
     full.write_text(content, encoding="utf-8")
 
 
-def generate(name, output_dir="."):
+def generate(name, output_dir=".", fmt="yaml"):
     target = Path(output_dir).resolve() / "autotest"
     if target.exists():
         print(f"autotest/ already exists in {output_dir}")
         return
 
     camel = _snake_to_camel(name)
+    want_py = fmt in ("py", "all")
+    want_yaml = fmt in ("yaml", "all")
 
-    (target / "case").mkdir(parents=True, exist_ok=True)
-    (target / "widget" / "pic_res").mkdir(parents=True, exist_ok=True)
     (target / "report").mkdir(parents=True, exist_ok=True)
-    (target / "yaml").mkdir(parents=True, exist_ok=True)
 
-    _write(target, "pytest.ini", _PYTEST_INI)
+    if fmt == "yaml":
+        _write(target, "pytest.ini", _PYTEST_INI_YAML)
+    elif fmt == "py":
+        _write(target, "pytest.ini", _PYTEST_INI_PY)
+    else:
+        _write(target, "pytest.ini", _PYTEST_INI_ALL)
+
     _write(target, "conftest.py", _CONFTEST_PY)
     _write(target, "config.ini", _CONFIG_INI)
-    _write(target, "ui.ini", _UI_INI)
 
-    _write(target, "case/__init__.py", "from .base_case import BaseCase\n")
-    _write(target, "case/base_case.py", _BASE_CASE.format(name=name))
-    _write(
-        target,
-        f"case/test_{name}_001.py",
-        _SAMPLE_TEST.format(name=name, camel=camel),
-    )
+    if want_py:
+        (target / "case").mkdir(parents=True, exist_ok=True)
+        (target / "widget" / "pic_res").mkdir(parents=True, exist_ok=True)
+        _write(target, "ui.ini", _UI_INI)
 
-    _write(
-        target,
-        "widget/__init__.py",
-        f"from .{name}_widget import {camel}Widget\n",
-    )
-    _write(target, "widget/base_widget.py", _BASE_WIDGET.format(name=name))
-    _write(
-        target,
-        f"widget/{name}_widget.py",
-        _APP_WIDGET.format(name=name, camel=camel),
-    )
+        _write(target, "case/__init__.py", "from .base_case import BaseCase\n")
+        _write(target, "case/base_case.py", _BASE_CASE.format(name=name))
+        _write(
+            target,
+            f"case/test_{name}_001.py",
+            _SAMPLE_TEST.format(name=name, camel=camel),
+        )
+        _write(
+            target,
+            "widget/__init__.py",
+            f"from .{name}_widget import {camel}Widget\n",
+        )
+        _write(target, "widget/base_widget.py", _BASE_WIDGET.format(name=name))
+        _write(
+            target,
+            f"widget/{name}_widget.py",
+            _APP_WIDGET.format(name=name, camel=camel),
+        )
+        _write(target, "widget/pic_res/.gitkeep", "")
 
-    _write(target, "widget/pic_res/.gitkeep", "")
-    _write(target, "yaml/.gitkeep", "")
-    _write(target, f"yaml/test_{name}_001.yaml", _SAMPLE_YAML.format(name=name))
+    if want_yaml:
+        (target / "yaml").mkdir(parents=True, exist_ok=True)
+        _write(target, "yaml/.gitkeep", "")
+        _write(target, "yaml/elements.yaml", _ELEMENTS_YAML.format(name=name))
+        _write(target, f"yaml/test_{name}_001.yaml", _SAMPLE_YAML.format(name=name))
 
     print(f"Generated autotest/ in {target}")
     print(f"  App: {name}")
+    print(f"  Format: {fmt}")
     print(f"  Usage: cd {target.parent} && youqu run")

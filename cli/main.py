@@ -39,6 +39,12 @@ def main():
     p_make = sub.add_parser("make", help="Generate autotest/ skeleton")
     p_make.add_argument("name", help="App name (e.g. terminal)")
     p_make.add_argument("--dir", default=".", help="Output directory (default: CWD)")
+    p_make.add_argument(
+        "--format",
+        default="yaml",
+        choices=["yaml", "py", "all"],
+        help="Skeleton format: yaml (default), py (Python only), all (both)",
+    )
 
     # youqu run [pytest args...]
     p_run = sub.add_parser("run", help="Run tests from autotest/")
@@ -63,7 +69,7 @@ def main():
 
     if args.command == "make":
         from youqu.cli.make import generate
-        generate(args.name, args.dir)
+        generate(args.name, args.dir, fmt=args.format)
     elif args.command == "run":
         from youqu.cli.run import run
         run(autotest_path=args.app or None, extra=extra)

@@ -12,6 +12,9 @@ from src.yaml_test.parser import parse_testcase
 def _write_yaml(tmp_path, content):
     p = tmp_path / "test_case.yaml"
     p.write_text(content, encoding="utf-8")
+    (tmp_path / "elements.yaml").write_text(
+        "app: test\nelements:\n  ok:\n    name: OK\n", encoding="utf-8"
+    )
     return p
 
 
