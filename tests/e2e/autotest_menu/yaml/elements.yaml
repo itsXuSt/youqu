@@ -1,0 +1,4 @@
+app: deepin-terminal
+elements:
+  _placeholder:
+    role: "frame"

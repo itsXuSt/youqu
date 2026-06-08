@@ -155,7 +155,7 @@ class CmdCtl:
         for i in cls.GREP_LIST:
             cmd += f"grep -v {i} | "
         ps_grep_v_str = (
-            f"ps -aux | grep {app_name} | {cmd.rstrip('| ')} | "
+            f"ps auxww | grep {app_name} | {cmd.rstrip('| ')} | "
             # pylint: disable=anomalous-backslash-in-string
             "grep -v daemon | grep -v '\-d'"
         )
@@ -193,7 +193,7 @@ class CmdCtl:
         cmd = ""
         for i in cls.GREP_LIST:
             cmd += f"grep -v {i} | "
-        cmd_txt = f"ps -aux | grep {app} | {cmd.rstrip('| ')}"
+        cmd_txt = f"ps auxww | grep {app} | {cmd.rstrip('| ')}"
         logger.debug(cmd_txt)
         command = os.popen(cmd_txt)
         result = command.read()
@@ -215,12 +215,13 @@ class CmdCtl:
         cmd = ""
         for i in cls.GREP_LIST:
             cmd += f"grep -v {i} | "
-        cmd_txt = f"ps -aux | grep -v daemon | grep {app} | {cmd.rstrip('| ')}"
+        cmd_txt = f"ps auxww | grep -v daemon | grep {app} | {cmd.rstrip('| ')}"
         logger.debug(cmd_txt)
         command = os.popen(cmd_txt)
         result = command.read()
-        logger.debug(result)
         command.close()
+        if result:
+            logger.debug(result)
         return bool(result)
 
     @classmethod
@@ -235,7 +236,7 @@ class CmdCtl:
         cmd = ""
         for i in cls.GREP_LIST:
             cmd += f"grep -v {i} | "
-        cmd_txt = f"ps -aux | grep -v daemon | grep {app} | {cmd.rstrip('| ')}"
+        cmd_txt = f"ps auxww | grep -v daemon | grep {app} | {cmd.rstrip('| ')}"
         logger.debug(cmd_txt)
         command = os.popen(cmd_txt)
         result = command.read()

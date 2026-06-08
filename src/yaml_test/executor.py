@@ -45,36 +45,80 @@ def selector_to_expr(selector: Any) -> str:
     return "$/"
 
 
-def _resolve_step_attrs(step: ActionStep, elements: dict) -> dict:
-    """Resolve step.ref to element attributes dict, or fallback to legacy fields.
+def _find_element(dog, attrs, idx=0):
+    name = attrs.get("name", "")
+    role = attrs.get("role", "")
+    if name:
+        expr = f"$/{name}/"
+        return dog.find_element_by_attr(expr, idx)
+    if role:
+        from src.depends.dogtail.tree import predicate
 
-    Priority: ``step.ref`` (looked up in elements.yaml) → inline ``step.selector``,
-    ``step.x``, ``step.y``, ``step.items``.  Never mixes the two paths.
+        results = dog.obj.findChildren(
+            predicate.GenericPredicate(roleName=role), recursive=True
+        )
+        if not results:
+            from src.custom_exception import ElementNotFound
+
+            raise ElementNotFound(f"role={role}")
+        return results[idx]
+    from src.custom_exception import ElementNotFound
+
+    raise ElementNotFound("no name or role in element definition")
+
+
+def _resolve_step_attrs(step: ActionStep, elements: dict) -> dict:
+    """Resolve step.ref to element attributes dict, then merge step-level fields.
+
+    Resolution order (later values win):
+    1. ``step.ref`` looked up in elements.yaml (provides base attrs)
+    2. Step-level inline fields: ``x``, ``y``, ``items``, ``menu``,
+       ``selector``, ``do``, ``text``, ``keys``, ``command``,
+       ``amount``, ``value``
+
+    Use ``step.ref`` for AT-SPI selectors + coordinates from the registry,
+    and step-level ``items``/``menu`` for the keyboard navigation path.
     """
     if step.ref:
         attrs = dict(resolve_ref(step.ref, elements))
-        if "x" not in attrs:
-            attrs.setdefault("x", 0)
-        if "y" not in attrs:
-            attrs.setdefault("y", 0)
-        if "menu" not in attrs:
-            attrs.setdefault("menu", [])
-        return attrs
+    else:
+        attrs = {}
 
-    # Legacy fallback — build attrs dict from inline fields
-    attrs: dict = {}
+    click_target = attrs.pop("click_target", None)
+    if click_target and isinstance(click_target, str):
+        target_el = resolve_ref(click_target, elements)
+        tx = target_el.get("x")
+        ty = target_el.get("y")
+        if tx is not None:
+            attrs.setdefault("x", tx)
+        if ty is not None:
+            attrs.setdefault("y", ty)
+
     sel = step.selector
-    if sel is not None:
+    if sel is not None and not step.ref:
         if hasattr(sel, "model_dump"):
-            attrs = sel.model_dump(exclude_none=True)
+            attrs.update({k: v for k, v in sel.model_dump(exclude_none=True).items() if v is not None})
         elif isinstance(sel, dict):
-            attrs = {k: v for k, v in sel.items() if v is not None}
+            attrs.update({k: v for k, v in sel.items() if v is not None})
+
     if step.x is not None:
-        attrs["x"] = step.x
+        attrs.setdefault("x", step.x)
     if step.y is not None:
-        attrs["y"] = step.y
+        attrs.setdefault("y", step.y)
     if step.items is not None:
         attrs["items"] = step.items
+
+    extras = getattr(step, "model_extra", {}) or {}
+    for key in ("duration", "key", "desc", "click_target"):
+        val = extras.get(key)
+        if val is not None:
+            attrs.setdefault(key, val)
+    menu_val = extras.get("menu")
+    if menu_val is not None:
+        attrs["menu"] = menu_val
+
+    attrs.setdefault("x", 0)
+    attrs.setdefault("y", 0)
     return attrs
 
 
@@ -108,7 +152,11 @@ def _handle_session_start(step: ActionStep, context: dict) -> None:
     cmd = step.command or context.get("app", "")
     if not cmd:
         raise ValueError("session_start requires 'command' or app name")
-    proc = subprocess.Popen(cmd, shell=True)
+    proc = subprocess.Popen(
+        cmd,
+        shell=True,
+        start_new_session=True,
+    )
     context["app_process"] = proc
     if step.wait:
         time.sleep(step.wait)
@@ -118,7 +166,7 @@ def _handle_session_stop(step: ActionStep, context: dict) -> None:
     app = context.get("app", "")
     if not app:
         return
-    subprocess.run(f"pkill -f {app}", shell=True, check=False)
+    subprocess.run(f"pkill {app}", shell=True, check=False)
     context.pop("app_process", None)
 
 
@@ -180,15 +228,15 @@ def _handle_element_action(step: ActionStep, context: dict) -> None:
     elements = context.get("elements") or {}
 
     attrs = _resolve_step_attrs(step, elements)
-    name = attrs.get("name", "")
-    expr = f"$/{name}/" if name else "$/"
     idx = attrs.get("index", 0)
-    element = dog.find_element_by_attr(expr, idx)
+    element = _find_element(dog, attrs, idx)
     action = step.do or "click"
     if action == "click":
         element.click()
     elif action == "right_click":
         element.click(button=3)
+    elif action == "middle_click":
+        element.click(button=2)
     elif action == "double_click":
         element.doubleClick()
     elif action == "point":
@@ -210,9 +258,7 @@ def _handle_element_set_value(step: ActionStep, context: dict) -> None:
     elements = context.get("elements") or {}
 
     attrs = _resolve_step_attrs(step, elements)
-    name = attrs.get("name", "")
-    expr = f"$/{name}/" if name else "$/"
-    element = dog.find_element_by_attr(expr)
+    element = _find_element(dog, attrs)
     element.click()
     mk.input_message(step.text or "")
 
@@ -227,9 +273,16 @@ def _handle_main_menu_comb(step: ActionStep, context: dict) -> None:
     attrs = _resolve_step_attrs(step, elements)
     items = attrs.get("menu", []) or attrs.get("items", [])
 
+    if not items:
+        role = attrs.get("role", "")
+        name = attrs.get("name", "")
+        if name and "menu" in role.lower():
+            items = [name]
+
     nav = MenuNavigator(context.get("app"))
     nav.open_main_menu()
-    nav.select(items)
+    if items:
+        nav.select(items)
 
 
 def _handle_context_menu_comb(step: ActionStep, context: dict) -> None:
@@ -244,9 +297,16 @@ def _handle_context_menu_comb(step: ActionStep, context: dict) -> None:
     y = attrs.get("y", 0)
     items = attrs.get("menu", []) or attrs.get("items", [])
 
+    if not items:
+        role = attrs.get("role", "")
+        name = attrs.get("name", "")
+        if name and "menu" in role.lower():
+            items = [name]
+
     nav = MenuNavigator(context.get("app"))
     nav.open_context_menu(x, y)
-    nav.select(items)
+    if items:
+        nav.select(items)
 
 
 def _handle_dbus_call(step: ActionStep, context: dict) -> None:
@@ -290,8 +350,14 @@ def _handle_dbus_get_property(step: ActionStep, context: dict) -> None:
 
 
 def _handle_wait(step: ActionStep, context: dict) -> None:
-    seconds = step.wait if step.wait is not None else 0.0
-    time.sleep(seconds)
+    seconds = step.wait
+    if seconds is None:
+        extras = getattr(step, "model_extra", {}) or {}
+        raw = extras.get("duration")
+        if raw is not None:
+            seconds = float(raw)
+    if seconds:
+        time.sleep(seconds)
 
 
 def _handle_screenshot(step: ActionStep, context: dict) -> None:
@@ -311,6 +377,7 @@ ACTION_HANDLERS: dict[str, Callable[[ActionStep, dict], None]] = {
     "keyboard_press": _handle_keyboard_press,
     "keyboard_hot_key": _handle_keyboard_hot_key,
     "keyboard_type": _handle_keyboard_type,
+    "keyboard_type_text": _handle_keyboard_type,
     "mouse_click": _handle_mouse_click,
     "mouse_right_click": _handle_mouse_right_click,
     "mouse_double_click": _handle_mouse_double_click,
@@ -403,11 +470,14 @@ class StepExecutor:
             result.message = f"Step [{step_label}] action '{step.action}' failed: {exc}"
             return result
 
+        if step.wait:
+            time.sleep(step.wait)
+
         for assert_step in step.assert_steps:
             try:
                 from src.yaml_test.assertions import run_assert
 
-                run_assert(assert_step)
+                run_assert(assert_step, self.context.get("elements"))
             except AssertionError as exc:
                 result.passed = False
                 result.message = (

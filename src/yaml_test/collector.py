@@ -26,11 +26,17 @@ class YamlTestError(Exception):
 
 def pytest_collect_file(parent, file_path: Path):
     """Collect .yaml files from configured yaml_dirs only."""
-    yaml_dirs = parent.config.getini("yaml_files")
+    try:
+        yaml_dirs = parent.config.getini("yaml_files")
+    except ValueError:
+        return None
     if not yaml_dirs:
         return None
 
     if file_path.suffix != ".yaml":
+        return None
+
+    if file_path.name == "elements.yaml":
         return None
 
     for d in yaml_dirs:

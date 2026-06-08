@@ -1,0 +1,23 @@
+name: "E2E: 主菜单键盘导航-选择主题深色"
+app: "deepin-terminal"
+screenshot: false
+
+setup:
+  - action: session_start
+    command: "deepin-terminal"
+    wait: 1.0
+
+steps:
+  - name: "打开主菜单并导航到主题→深色"
+    action: main_menu_comb
+    items: ["主题", "深色"]
+    wait: 0.3
+
+  - name: "验证终端进程仍在运行"
+    action: wait
+    assert:
+      - type: process_running
+        app: "deepin-terminal"
+
+teardown:
+  - action: session_stop

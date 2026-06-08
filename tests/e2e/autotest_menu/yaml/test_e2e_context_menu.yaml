@@ -1,0 +1,25 @@
+name: "E2E: 右键菜单键盘导航-选择查找"
+app: "deepin-terminal"
+screenshot: false
+
+setup:
+  - action: session_start
+    command: "deepin-terminal"
+    wait: 1.0
+
+steps:
+  - name: "右键点击终端中心并选择查找"
+    action: context_menu_comb
+    x: 989
+    y: 591
+    items: ["查找"]
+    wait: 0.2
+
+  - name: "验证终端进程仍在运行"
+    action: wait
+    assert:
+      - type: process_running
+        app: "deepin-terminal"
+
+teardown:
+  - action: session_stop

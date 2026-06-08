@@ -22,6 +22,15 @@ _INJECT_PATHS = (
 )
 
 
+def pytest_addoption(parser):
+    parser.addini(
+        "yaml_files",
+        "Directories under root to search for YAML test case files",
+        default=[],
+        type="args",
+    )
+
+
 def pytest_configure(config):
     _inject_paths()
     _setup_env()

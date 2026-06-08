@@ -88,12 +88,34 @@ class TestOpenContextMenu:
 
 class TestNavigateSingle:
     def test_navigate_to_single_item(self, monkeypatch):
-        app, _, _ = _make_app_with_focused("复制")
-        mk_inst, _, _, _ = _patch_deps(monkeypatch, app)
+        mk_inst = MagicMock()
+        monkeypatch.setattr(MenuNavigator, "_ensure_mk", lambda self: mk_inst)
+        monkeypatch.setattr(MenuNavigator, "_ensure_app_node", lambda self: MagicMock())
 
         nav = MenuNavigator("test-app", "Test App")
+        nav._ensure_mk = lambda: mk_inst
+
+        monkeypatch.setattr(
+            MenuNavigator, "_scan_for_focused", lambda self, *a, **kw: "复制"
+        )
         nav.navigate_to(["复制"])
         assert mk_inst.press_key.call_count == 0
+
+    def test_navigate_to_single_item_no_initial_focus(self, monkeypatch):
+        mk_inst = MagicMock()
+        monkeypatch.setattr(MenuNavigator, "_ensure_mk", lambda self: mk_inst)
+        monkeypatch.setattr(MenuNavigator, "_ensure_app_node", lambda self: MagicMock())
+
+        nav = MenuNavigator("test-app", "Test App")
+        nav._ensure_mk = lambda: mk_inst
+
+        sequence = iter(["", "复制", "复制"])
+        monkeypatch.setattr(
+            MenuNavigator, "_scan_for_focused", lambda self, *a, **kw: next(sequence)
+        )
+        nav.navigate_to(["复制"])
+        calls = [c.args[0] for c in mk_inst.press_key.call_args_list]
+        assert "Down" in calls
 
 
 class TestNavigateMultiple:
@@ -105,12 +127,14 @@ class TestNavigateMultiple:
         nav = MenuNavigator("test-app", "Test App")
         nav._ensure_mk = lambda: mk_inst
 
-        sequence = iter(["文件", "文件", "打开", "打开"])
-        monkeypatch.setattr(
-            MenuNavigator,
-            "_read_focused_item",
-            lambda self: next(sequence),
-        )
+        sequence = iter(["文件", "文件", "打开", "打开", ""])
+        def fake_scan(self, *a, **kw):
+            try:
+                return next(sequence)
+            except StopIteration:
+                return ""
+        monkeypatch.setattr(MenuNavigator, "_scan_for_focused", fake_scan)
+        monkeypatch.setattr(MenuNavigator, "_navigate_by_events", lambda self, *a, **kw: (True, ""))
         nav.navigate_to(["文件", "打开"])
 
         calls = [c.args[0] for c in mk_inst.press_key.call_args_list]
@@ -127,10 +151,11 @@ class TestNavigateNotFound:
         nav.MAX_LOOP = 4
         sequence = iter(["编辑", "查看", "帮助", "工具", "格式"])
 
-        def fake_read(self):
+        def fake_scan(self, *a, **kw):
             return next(sequence)
 
-        monkeypatch.setattr(MenuNavigator, "_read_focused_item", fake_read)
+        monkeypatch.setattr(MenuNavigator, "_scan_for_focused", fake_scan)
+        monkeypatch.setattr(MenuNavigator, "_list_menu_items", lambda self, **kw: [])
 
         with pytest.raises(MenuNotFoundError, match="未找到"):
             nav.navigate_to(["目标项"])
@@ -145,8 +170,8 @@ class TestNavigateWrapAround:
         nav.MAX_LOOP = 5
         monkeypatch.setattr(
             MenuNavigator,
-            "_read_focused_item",
-            lambda self: "编辑",
+            "_scan_for_focused",
+            lambda self, *a, **kw: "编辑",
         )
         nav.mk = mk_inst
 
@@ -162,6 +187,42 @@ class TestSelect:
         nav = MenuNavigator("test-app", "Test App")
         nav.select(["复制"])
         mk_inst.press_key.assert_called_once_with("Return")
+
+
+class TestEnumerationFallback:
+    def test_enumeration_no_focus(self, monkeypatch):
+        """DTK DMenu: no AT-SPI focus, skips enumeration, goes to events.
+        
+        Ghost menu items (persistent popup menus) may exist in tree but
+        never have focused state. Enumerating them gives wrong indices.
+        The correct fallback is event-based navigation.
+        """
+        item1 = _make_node(name="粘贴", states=[])
+        item2 = _make_node(name="复制", states=[])
+        item3 = _make_node(name="搜索", states=[])
+        app = _make_node(role="application", children=[item1, item2, item3])
+        mk_inst, _, _, _ = _patch_deps(monkeypatch, app)
+
+        nav = MenuNavigator("test-app", "Test App")
+
+        mock_focus = lambda self, *a, **kw: ""  # No focus ever
+        monkeypatch.setattr(MenuNavigator, "_read_focused_item", mock_focus)
+        nav.mk = mk_inst
+
+        with pytest.raises(MenuNotFoundError):
+            nav.navigate_to(["复制"])
+
+    def test_enumeration_target_not_found(self, monkeypatch):
+        """Enumeration fails when target not in menu."""
+        app = _make_node(role="application", children=[])
+        mk_inst, _, _, _ = _patch_deps(monkeypatch, app)
+
+        nav = MenuNavigator("test-app", "Test App")
+        monkeypatch.setattr(MenuNavigator, "_read_focused_item", lambda self, *a, **kw: "")
+        nav.mk = mk_inst
+
+        with pytest.raises(MenuNotFoundError, match="未找到"):
+            nav.navigate_to(["不存在的项"])
 
 
 class TestCancel:
@@ -191,8 +252,8 @@ class TestExactMatch:
         nav.MAX_LOOP = 3
         monkeypatch.setattr(
             MenuNavigator,
-            "_read_focused_item",
-            lambda self: "复制粘贴",
+            "_scan_for_focused",
+            lambda self, *a, **kw: "复制粘贴",
         )
         nav.mk = mk_inst
 
@@ -227,13 +288,16 @@ class TestMenuClosed:
 
         nav = MenuNavigator("test-app", "Test App")
         nav.MAX_LOOP = 5
-        sequence = iter(["", "", "", "", ""])
+        sequence = iter(["", "", ""])
 
-        def fake_read(self):
-            return next(sequence)
+        def fake_scan(self, *a, **kw):
+            try:
+                return next(sequence)
+            except StopIteration:
+                return ""
 
-        monkeypatch.setattr(MenuNavigator, "_read_focused_item", fake_read)
+        monkeypatch.setattr(MenuNavigator, "_scan_for_focused", fake_scan)
         nav.mk = mk_inst
 
-        with pytest.raises(MenuNotFoundError, match="菜单已关闭"):
+        with pytest.raises(MenuNotFoundError, match="未找到"):
             nav.navigate_to(["目标项"])

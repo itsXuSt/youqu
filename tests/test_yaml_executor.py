@@ -132,11 +132,12 @@ class TestMouseActions:
 
 
 class TestElementActions:
+    @patch("src.yaml_test.executor._find_element")
     @patch("src.yaml_test.executor._get_dog")
-    def test_execute_element_action_click(self, mock_get_dog):
+    def test_execute_element_action_click(self, mock_get_dog, mock_find_element):
         element = MagicMock()
+        mock_find_element.return_value = element
         dog = MagicMock()
-        dog.find_element_by_attr.return_value = element
         mock_get_dog.return_value = dog
         tc = _make_testcase([
             ActionStep(
@@ -147,15 +148,15 @@ class TestElementActions:
         ])
         result = StepExecutor(tc).run()
         assert result.passed
-        dog.find_element_by_attr.assert_called_once_with("$/OK/", 0)
         element.click.assert_called_once()
 
+    @patch("src.yaml_test.executor._find_element")
     @patch("src.yaml_test.executor._get_dog")
     @patch("src.yaml_test.executor._get_mk")
-    def test_execute_element_set_value(self, mock_get_mk, mock_get_dog):
+    def test_execute_element_set_value(self, mock_get_mk, mock_get_dog, mock_find_element):
         element = MagicMock()
+        mock_find_element.return_value = element
         dog = MagicMock()
-        dog.find_element_by_attr.return_value = element
         mock_get_dog.return_value = dog
         mk = MagicMock()
         mock_get_mk.return_value = mk
@@ -183,7 +184,9 @@ class TestSessionActions:
         )
         result = StepExecutor(tc).run()
         assert result.passed
-        mock_popen.assert_called_once_with("deepin-reader", shell=True)
+        mock_popen.assert_called_once_with(
+            "deepin-reader", shell=True, start_new_session=True
+        )
 
     @patch("src.yaml_test.executor.subprocess.run")
     def test_execute_session_stop(self, mock_run):

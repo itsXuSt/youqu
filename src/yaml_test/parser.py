@@ -59,6 +59,7 @@ class AssertStep(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     type: str
+    ref: Optional[str] = None
     selector: Optional[Selector] = None
     expected: Optional[Any] = None
     value: Optional[Any] = None

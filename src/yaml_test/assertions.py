@@ -13,12 +13,19 @@ from typing import Any, Callable
 
 from src.yaml_test.executor import selector_to_expr
 from src.yaml_test.parser import AssertStep
+from src.yaml_test.elements import resolve_ref
+
+# Module-level elements cache, set by run_assert before dispatching
+_ELEMENTS: dict | None = None
 
 
 def _resolve_expr(step: AssertStep) -> str:
-    """Build a YouQu expr from the assert step's selector or expr field."""
+    """Build a YouQu expr from the assert step's selector, expr, or ref field."""
     if step.expr:
         return step.expr
+    if step.ref and _ELEMENTS:
+        attrs = resolve_ref(step.ref, _ELEMENTS)
+        return selector_to_expr(attrs)
     if step.selector is not None:
         return selector_to_expr(step.selector.model_dump(exclude_none=True))
     return ""
@@ -168,13 +175,15 @@ ASSERT_HANDLERS: dict[str, Callable[[AssertStep], None]] = {
 }
 
 
-def run_assert(assert_step: AssertStep) -> None:
+def run_assert(assert_step: AssertStep, elements: dict | None = None) -> None:
     """Dispatch an assert step to the appropriate handler.
 
     Raises:
         ValueError: If assert type is unknown.
         AssertionError: If the assertion fails.
     """
+    global _ELEMENTS
+    _ELEMENTS = elements
     handler = ASSERT_HANDLERS.get(assert_step.type)
     if handler is None:
         raise ValueError(f"Unknown assert type: {assert_step.type}")
