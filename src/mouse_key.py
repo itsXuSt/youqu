@@ -141,7 +141,7 @@ class MouseKey:
         """
         logger.debug(f"鼠标右键坐标 {(_x, _y) if _x else cls.current_location(out_log=False)}")
         pyautogui.rightClick(x=_x, y=_y)
-        sleep(1)
+        sleep(0.3)
 
     @classmethod
     def double_click(cls, _x=None, _y=None, interval=0.3):
@@ -155,7 +155,7 @@ class MouseKey:
         logger.debug(f"鼠标左键双击坐标 {(_x, _y) if _x else cls.current_location(out_log=False)}")
         pyautogui.doubleClick(x=_x, y=_y, interval=interval)
         # CmdCtl.run_cmd(f"xdotool mousemove {_x} {_y} click --repeat 2 1")
-        sleep(1)
+        sleep(0.3)
 
     @classmethod
     def triple_click(cls, _x=None, _y=None):
@@ -167,10 +167,10 @@ class MouseKey:
         """
         logger.debug(f"鼠标三连击坐标 {(_x, _y) if _x else cls.current_location(out_log=False)}")
         pyautogui.tripleClick(x=_x, y=_y, interval=0.3)
-        sleep(1)
+        sleep(0.3)
 
     @classmethod
-    def drag_to(cls, _x, _y, duration=0.4, delay=1):
+    def drag_to(cls, _x, _y, duration=0.4, delay=0.3):
         """
          拖拽到指定位置(绝对位置)
         :param _x: 拖拽到的位置x
@@ -197,7 +197,7 @@ class MouseKey:
         """
         logger.debug(f"鼠标从当前位置拖拽到相对坐标 ({_x, _y})")
         pyautogui.dragRel(xOffset=int(_x), yOffset=int(_y), duration=0.4, mouseDownUp=True)
-        sleep(1)
+        sleep(0.3)
 
     @classmethod
     def mouse_down(cls, _x=None, _y=None, button=1):
@@ -223,10 +223,10 @@ class MouseKey:
         """
         logger.debug(f"松开鼠标{['左', '中', '右'][button - 1]}键")
         pyautogui.mouseUp(button=cls.MOUSE.get(button, pyautogui.PRIMARY))
-        sleep(1)
+        sleep(0.3)
 
     @classmethod
-    def mouse_scroll(cls, amount_of_scroll, duration=1):
+    def mouse_scroll(cls, amount_of_scroll, duration=0.3):
         """
          滚动鼠标滚轮,the_amount_of_scroll为传入滚轮数,正数为向上,负数为向下
         :param amount_of_scroll: 滚轮数
@@ -406,7 +406,7 @@ class MouseKey:
         :return:
         """
         cls.move_to(*start)
-        sleep(1)
+        sleep(0.3)
         cls.drag_to(*end)
 
     @classmethod
@@ -418,7 +418,7 @@ class MouseKey:
         :return:
         """
         cls.move_to(*start)
-        sleep(1)
+        sleep(0.3)
         cls.drag_rel(*end)
 
     @classmethod

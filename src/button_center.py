@@ -27,7 +27,7 @@ class ButtonCenter:
     __author__ = "Mikigo <huangmingqiang@uniontech.com>, Litao <litaoa@uniontech.com>"
 
     def __init__(
-        self, app_name: str, config_path: str, number: int = -1, pause: int = 1, retry: int = 1
+        self, app_name: str, config_path: str, number: int = -1, pause: int = 0, retry: int = 1
     ):
         """
         :param app_name: 系统应用软件包，例如，dde-file-manager

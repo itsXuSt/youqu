@@ -25,6 +25,7 @@ try:
     # config.logDebugToStdOut = False
     config.logDebugToFile = False
     config.searchCutoffCount = 2
+    config.actionDelay = 0.2
     GlobalConfig.NO_DOGTAIL = False
 except ModuleNotFoundError:
     GlobalConfig.NO_DOGTAIL = True

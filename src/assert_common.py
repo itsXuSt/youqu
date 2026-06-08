@@ -111,7 +111,6 @@ class AssertCommon:
             f"屏幕上匹配不存在图片< {f'***{widget[-40:]}' if len(widget) >= 40 else widget} >"
         )
         try:
-            sleep(1)
             ImageUtils.find_image(
                 widget,
                 rate=rate,
@@ -136,9 +135,8 @@ class AssertCommon:
          期望存在文件路径
         :param widget: 文件全路径或目录 例：~/Desktop/1.txt
         :param file: 文件名
-        :param recursive: 是否递归查找
+         :param recursive: 是否递归查找
         """
-        sleep(1)
         if recursive:
             if file:
                 for _, _, files in os.walk(widget):
@@ -166,7 +164,6 @@ class AssertCommon:
         :param file: 文件名
         :param recursive: 是否递归查找
         """
-        sleep(1)
         logger.info(f"断言文件不存在<{widget}>")
         if recursive:
             if file:
@@ -187,9 +184,8 @@ class AssertCommon:
     def assert_element_exist(expr):
         """
          期望元素存在
-        :param expr: 匹配元素的格式, 例如： $/dde-file-manager//1.txt
+         :param expr: 匹配元素的格式, 例如： $/dde-file-manager//1.txt
         """
-        sleep(0.5)
         logger.info(f"断言元素存在<{expr}>")
         if not DogtailUtils().find_element_by_attr(expr):
             raise AssertionError(f"元素不存在！！！expr= <{expr}>")
