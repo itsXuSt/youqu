@@ -50,6 +50,20 @@ def main():
     p_run = sub.add_parser("run", help="Run tests from autotest/")
     p_run.add_argument("-a", "--app", default="", help="Override autotest path")
 
+    # youqu report
+    p_report = sub.add_parser("report", help="Generate Allure HTML report")
+    p_report.add_argument("-a", "--app", default="", help="Override autotest path")
+    p_report.add_argument(
+        "--clean",
+        action="store_true",
+        help="Clean output directory before generating",
+    )
+    p_report.add_argument(
+        "--serve",
+        action="store_true",
+        help="Serve report via HTTP after generation (dynamic port, 0.0.0.0)",
+    )
+
     # youqu mcp
     p_mcp = sub.add_parser("mcp", help="Start MCP server")
     p_mcp.add_argument(
@@ -73,6 +87,9 @@ def main():
     elif args.command == "run":
         from youqu.cli.run import run
         run(autotest_path=args.app or None, extra=extra)
+    elif args.command == "report":
+        from youqu.cli.report import run as report_run
+        report_run(autotest_path=args.app or None, clean=args.clean, serve=args.serve)
     elif args.command == "mcp":
         try:
             from youqu.src.mcp.server import start as mcp_start

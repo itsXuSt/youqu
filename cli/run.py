@@ -22,6 +22,8 @@ def _find_autotest_dir(override=None):
         return cwd / "autotest"
     if (cwd / "case").is_dir() and (cwd / "pytest.ini").exists():
         return cwd
+    if (cwd / "pytest.ini").exists() or (cwd / "report").is_dir():
+        return cwd
 
     print("Error: No autotest/ directory found. Run 'youqu make <name>' first.")
     sys.exit(1)
