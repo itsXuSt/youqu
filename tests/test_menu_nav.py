@@ -109,13 +109,14 @@ class TestNavigateSingle:
         nav = MenuNavigator("test-app", "Test App")
         nav._ensure_mk = lambda: mk_inst
 
-        sequence = iter(["", "复制", "复制"])
         monkeypatch.setattr(
-            MenuNavigator, "_scan_for_focused", lambda self, *a, **kw: next(sequence)
+            MenuNavigator, "_scan_for_focused", lambda self, *a, **kw: ""
+        )
+        monkeypatch.setattr(
+            MenuNavigator, "_navigate_by_events", lambda self, *a, **kw: (True, "复制")
         )
         nav.navigate_to(["复制"])
-        calls = [c.args[0] for c in mk_inst.press_key.call_args_list]
-        assert "Down" in calls
+        assert mk_inst.press_key.call_count == 0
 
 
 class TestNavigateMultiple:

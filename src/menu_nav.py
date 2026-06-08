@@ -186,11 +186,6 @@ class MenuNavigator:
         """
         start_text = self._scan_for_focused(self._ensure_app_node(), max_depth=3)
         if not start_text:
-            self._ensure_mk().press_key("Down")
-            time.sleep(0.12)
-            start_text = self._scan_for_focused(self._ensure_app_node(), max_depth=3)
-
-        if not start_text:
             return False, ""
 
         for iteration in range(self.MAX_LOOP):
