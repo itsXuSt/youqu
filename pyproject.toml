@@ -20,6 +20,7 @@ classifiers = [
 
 dependencies = [
     "funnylog",
+    "pydantic>=1.10",
     "pytest>=6.2.5",
     "allure-pytest==2.9.45",
     "allure-custom",

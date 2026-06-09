@@ -75,6 +75,9 @@ def main():
     p_mcp.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
     p_mcp.add_argument("--port", type=int, default=8000, help="HTTP port (default: 8000)")
 
+    # youqu doctor
+    sub.add_parser("doctor", help="Check and fix environment issues")
+
     # youqu startproject <name>
     p_sp = sub.add_parser("startproject", help="Create project from template")
     p_sp.add_argument("name", nargs="?", help="Project name (default: youqu)")
@@ -97,6 +100,9 @@ def main():
         except ImportError:
             print("MCP server requires: pip install youqu-framework[mcp]")
             sys.exit(1)
+    elif args.command == "doctor":
+        from youqu.cli.doctor import run as doctor_run
+        doctor_run()
     elif args.command == "startproject":
         from youqu.src.startproject import cli
         cli()

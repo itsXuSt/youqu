@@ -258,7 +258,8 @@ def _handle_element_set_value(step: ActionStep, context: dict) -> None:
     elements = context.get("elements") or {}
 
     attrs = _resolve_step_attrs(step, elements)
-    element = _find_element(dog, attrs)
+    idx = attrs.get("index", 0)
+    element = _find_element(dog, attrs, idx)
     element.click()
     mk.input_message(step.text or "")
 
