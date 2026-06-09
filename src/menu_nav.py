@@ -277,7 +277,7 @@ class MenuNavigator:
             return False
 
         GLib.timeout_add(50, step)
-        GLib.timeout_add(self.MAX_LOOP * 200 + 2000, loop.quit)
+        GLib.timeout_add(3000, loop.quit)
 
         loop.run()
         Atspi.EventListener.deregister(listener, 'object:state-changed:focused')

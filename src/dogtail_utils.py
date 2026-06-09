@@ -163,7 +163,7 @@ class DogtailUtils(MouseKey):
         if node:
             name = node.group().replace("\\/", "/")[:-1]
         else:
-            return False
+            return None, []
         if name == "*":
             element = element.children
         else:
@@ -179,6 +179,8 @@ class DogtailUtils(MouseKey):
             node, element = self.__evalx(name, element, recursive=False)
         else:
             return False
+        if node is None:
+            return result
         try:
             next_node = name[node.end() - 1:]
             if next_node != "/":

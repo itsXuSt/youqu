@@ -1,4 +1,4 @@
-name: "E2E: 主菜单键盘导航-选择主题深色"
+name: "E2E: 主菜单切换主题-跟随系统→浅色→深色"
 app: "deepin-terminal"
 screenshot: false
 
@@ -8,10 +8,20 @@ setup:
     wait: 1.0
 
 steps:
-  - name: "打开主菜单并导航到主题→深色"
+  - name: "切换主题为跟随系统"
+    action: main_menu_comb
+    items: ["主题", "跟随系统"]
+    wait: 0.5
+
+  - name: "切换主题为浅色"
+    action: main_menu_comb
+    items: ["主题", "浅色"]
+    wait: 0.5
+
+  - name: "切换主题为深色"
     action: main_menu_comb
     items: ["主题", "深色"]
-    wait: 0.3
+    wait: 0.5
 
   - name: "验证终端进程仍在运行"
     action: wait
