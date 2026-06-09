@@ -78,6 +78,14 @@ def main():
     # youqu doctor
     sub.add_parser("doctor", help="Check and fix environment issues")
 
+    # youqu index
+    p_index = sub.add_parser("index", help="Manage YAML test index")
+    p_index.add_argument("--rebuild", action="store_true", help="Rebuild index from YAML files")
+    p_index.add_argument("--list", action="store_true", help="List test cases")
+    p_index.add_argument("--app", default="", help="Filter by app")
+    p_index.add_argument("--module", default="", help="Filter by module")
+    p_index.add_argument("--tag", default="", help="Filter by tag (comma-separated)")
+
     # youqu startproject <name>
     p_sp = sub.add_parser("startproject", help="Create project from template")
     p_sp.add_argument("name", nargs="?", help="Project name (default: youqu)")
@@ -103,6 +111,9 @@ def main():
     elif args.command == "doctor":
         from youqu.cli.doctor import run as doctor_run
         doctor_run()
+    elif args.command == "index":
+        from youqu.cli.index import run as index_run
+        index_run(args)
     elif args.command == "startproject":
         from youqu.src.startproject import cli
         cli()

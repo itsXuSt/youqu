@@ -58,6 +58,22 @@ except ImportError:
     pass
 
 
+# ============================================================
+# Job Manager Singleton
+# ============================================================
+
+_JOB_MANAGER = None
+
+
+def _get_job_manager():
+    """Get or create the global JobManager singleton."""
+    global _JOB_MANAGER
+    if _JOB_MANAGER is None:
+        from src.mcp.jobs import JobManager
+        _JOB_MANAGER = JobManager()
+    return _JOB_MANAGER
+
+
 @asynccontextmanager
 async def youqu_lifespan(server: FastMCP) -> AsyncIterator[dict]:
     state = {}  # type: dict
@@ -825,6 +841,157 @@ def screenshot_save() -> dict:
         return {"success": True, "path": path}
     except _TOOL_ERRORS as e:
         return {"success": False, "error": str(e)}
+
+
+# ============================================================
+# YAML Test Execution Tools (async batch)
+# ============================================================
+
+def _find_yaml_dir():
+    """Find yaml directory from common locations.
+
+    Priority: YOUQU_AUTOTEST_DIR env var > CWD/yaml + pytest.ini > CWD/autotest/yaml.
+    """
+    import os as _os
+
+    env_dir = _os.environ.get("YOUQU_AUTOTEST_DIR", "")
+    if env_dir:
+        ep = Path(env_dir)
+        if (ep / "yaml").is_dir() and (ep / "pytest.ini").exists():
+            return ep / "yaml", ep
+        if ep.is_dir() and (ep / "pytest.ini").exists():
+            return ep, ep
+
+    cwd = Path.cwd()
+    if (cwd / "yaml").is_dir() and (cwd / "pytest.ini").exists():
+        return cwd / "yaml", cwd
+    if (cwd / "autotest" / "yaml").is_dir():
+        atd = cwd / "autotest"
+        return atd / "yaml", atd
+    return None, None
+
+
+@mcp.tool
+def yaml_list_tests(
+    app: str = "",
+    module: str = "",
+    feature: str = "",
+    tags: str = "",
+) -> dict:
+    """List available YAML test cases with optional filtering.
+
+    Args:
+        app: Filter by app name (e.g. 'deepin-music')
+        module: Filter by module (e.g. '播放')
+        feature: Filter by feature (e.g. '本地文件')
+        tags: Comma-separated tags (e.g. 'L1,smoke')
+    """
+    yaml_dir, _ = _find_yaml_dir()
+    if not yaml_dir:
+        return {"success": False, "error": "No YAML test directory found"}
+    try:
+        from src.yaml_test.index import YamlIndex
+        idx = YamlIndex(yaml_dir)
+        tags_list = [t.strip() for t in tags.split(",") if t.strip()] if tags else None
+        tests = idx.query(
+            app=app or None,
+            module=module or None,
+            feature=feature or None,
+            tags=tags_list,
+        )
+        stats = idx.get_stats()
+        return {"success": True, "total": len(tests), "tests": tests, "stats": stats}
+    except _TOOL_ERRORS as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def yaml_run_batch(
+    test_ids: str,
+    batch_size: int = 5,
+) -> dict:
+    """Run YAML test cases asynchronously in batches.
+
+    Returns a job_id immediately — use yaml_get_status(job_id) to poll.
+    """
+    yaml_dir, pytest_ini_dir = _find_yaml_dir()
+    if not yaml_dir:
+        return {"success": False, "error": "No YAML test directory found"}
+
+    try:
+        from src.yaml_test.index import YamlIndex
+        idx = YamlIndex(yaml_dir)
+
+        if test_ids.strip().upper() == "ALL":
+            ids = [t["id"] for t in idx.query()]
+        elif test_ids.startswith("module:"):
+            ids = [t["id"] for t in idx.query(module=test_ids[len("module:"):].strip())]
+        elif test_ids.startswith("tag:"):
+            tag_list = [t.strip() for t in test_ids[len("tag:"):].strip().split(",") if t.strip()]
+            ids = [t["id"] for t in idx.query(tags=tag_list)]
+        else:
+            ids = [tid.strip() for tid in test_ids.split(",") if tid.strip()]
+
+        if not ids:
+            return {"success": False, "error": "No test IDs resolved"}
+
+        from src.mcp.jobs import execute_batches
+        jm = _get_job_manager()
+        total_batches = (len(ids) + batch_size - 1) // batch_size
+
+        def _run():
+            return execute_batches(
+                test_ids=ids, yaml_dir=str(yaml_dir),
+                pytest_ini_dir=str(pytest_ini_dir), batch_size=batch_size,
+                progress_callback=None, cancel_event=None,
+            )
+
+        job = jm.submit(_run)
+        if job.status == "rejected":
+            return {"success": False, "error": job.error, "running_job_id": job.running_job_id}
+
+        return {
+            "success": True, "job_id": job.job_id, "status": job.status,
+            "total_batches": total_batches, "total_cases": len(ids), "batch_size": batch_size,
+        }
+    except _TOOL_ERRORS as e:
+        return {"success": False, "error": str(e)}
+
+
+@mcp.tool
+def yaml_get_status(job_id: str) -> dict:
+    """Get status of a running or completed test job.
+
+    Poll every 5 seconds until status is 'completed' or 'failed'.
+    """
+    import time
+    jm = _get_job_manager()
+    job = jm.get_status(job_id)
+    if not job:
+        return {"success": False, "error": f"Job '{job_id}' not found"}
+
+    resp = {
+        "job_id": job.job_id,
+        "status": job.status,
+        "progress": job.progress,
+        "elapsed_ms": int((time.time() - job.created_at) * 1000),
+    }
+    if job.status in ("completed", "failed", "cancelled") and job.result:
+        resp["result"] = job.result
+    if job.error:
+        resp["error"] = job.error
+    return resp
+
+
+@mcp.tool
+def yaml_cancel(job_id: str) -> dict:
+    """Cancel a running test job.
+
+    Completes the current batch, then stops.
+    """
+    jm = _get_job_manager()
+    ok = jm.cancel_job(job_id)
+    return {"success": True, "job_id": job_id, "cancelled": ok}
 
 
 # ============================================================

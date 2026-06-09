@@ -295,6 +295,17 @@ elements:
 
 ```yaml
 name: "测试用例标题"
+description: |
+  前置条件:
+
+  测试步骤:
+  1.
+
+  预期结果:
+  1.
+module: ""       # 模块分类，如 "播放"、"设置"、"编辑"
+feature: ""      # 功能子类，如 "本地文件"、"在线流"
+tags: []          # 标签，如 ["L1", "smoke"]
 app: "app-name"
 screenshot: false
 vars:
@@ -364,6 +375,12 @@ teardown:
 **Critical**: All YAML test cases use `ref` to reference elements.yaml entries.
 Inline `selector`, `x`, `y`, `items` are NOT allowed — they cause ambiguity and
 scatter element definitions across files.
+
+**Metadata fields** (`description`/`module`/`feature`/`tags`):
+- `description`: From xlsx "测试步骤" + "预期结果" columns (multi-line, human-readable reference)
+- `module`/`feature`: From xlsx module/feature columns, or inferred from case grouping
+- `tags`: Priority-based (L1/L2/L3) from xlsx priority column
+- After generating cases, run `youqu index --rebuild` to update `yaml/index.yaml`
 
 #### YAML Action Reference
 

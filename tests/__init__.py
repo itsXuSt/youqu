@@ -105,7 +105,7 @@ sys.modules["src.yaml_test"] = _yaml_test_pkg
 setattr(sys.modules["src"], "yaml_test", _yaml_test_pkg)
 
 _src_yaml_test = _project_root / "src" / "yaml_test"
-for _fname in ["parser", "executor", "assertions", "wait", "collector"]:
+for _fname in ["parser", "executor", "assertions", "wait", "collector", "index"]:
     _fpath = _src_yaml_test / "{}.py".format(_fname)
     _spec = _ilu.spec_from_file_location("src.yaml_test.{}".format(_fname), str(_fpath))
     _mod = _ilu.module_from_spec(_spec)
@@ -113,3 +113,9 @@ for _fname in ["parser", "executor", "assertions", "wait", "collector"]:
     sys.modules["src.yaml_test.{}".format(_fname)] = _mod
     _spec.loader.exec_module(_mod)
     setattr(_yaml_test_pkg, _fname, _mod)
+
+_jobs_path = _project_root / "src" / "mcp" / "jobs.py"
+_jobs_spec = _ilu.spec_from_file_location("src.mcp.jobs", str(_jobs_path))
+_jobs_mod = _ilu.module_from_spec(_jobs_spec)
+sys.modules["src.mcp.jobs"] = _jobs_mod
+_jobs_spec.loader.exec_module(_jobs_mod)

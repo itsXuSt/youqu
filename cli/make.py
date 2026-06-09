@@ -118,6 +118,17 @@ _SAMPLE_YAML = r"""# YAML test case for {name}
 #   image_exist, image_not_exist, ocr_exist, ocr_not_exist, window_size, dbus_property
 
 name: "{name} 基础启动测试"
+description: |
+  前置条件:
+
+  测试步骤:
+  1.
+
+  预期结果:
+  1.
+module: ""
+feature: ""
+tags: []
 app: "{name}"
 screenshot: false
 
@@ -231,6 +242,16 @@ def generate(name, output_dir=".", fmt="yaml"):
         _write(target, "yaml/.gitkeep", "")
         _write(target, "yaml/elements.yaml", _ELEMENTS_YAML.format(name=name))
         _write(target, f"yaml/test_{name}_001.yaml", _SAMPLE_YAML.format(name=name))
+
+    if want_yaml:
+        try:
+            from src.yaml_test.index import YamlIndex
+            yaml_dir = target / "yaml"
+            idx = YamlIndex(yaml_dir)
+            count = idx.rebuild()
+            print(f"  Index: {len(count) if isinstance(count, list) else 0} test(s)")
+        except Exception:
+            pass
 
     print(f"Generated autotest/ in {target}")
     print(f"  App: {name}")

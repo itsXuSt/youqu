@@ -91,98 +91,118 @@ xdotool search --name "终端" || echo "FAILED: window not found"
 
 ## Step 2: Discover Available Tests
 
-Before executing, understand what tests exist:
+**PREFERRED — MCP tool (when MCP connected)**:
+```
+yaml_list_tests(app="deepin-terminal", module="标签管理")
+```
+Returns structured test list with `id`, `name`, `module`, `feature`, `tags`, `description`.
 
+Use filter params to narrow: `app`, `module`, `feature`, `tags` (comma-separated).
+
+**Bash fallback (if MCP not available)**:
 ```bash
-# List YAML test files (default format, auto-collected)
+# List YAML test files
 ls autotest/yaml/test_*.yaml
 
-# List Python test files (py / all mode)
-ls autotest/case/test_*.py
-
-# Verify elements.yaml (mandatory for YAML, defines all ref targets)
-cat autotest/yaml/elements.yaml
+# Query via CLI index
+youqu index --list --app deepin-terminal --module 标签管理
 ```
 
-Present test counts (both .py and .yaml) to the user before running.
-
 ---
 
-## Step 3: Parse Intent → CLI
+## Step 3: Parse Intent → Execution
 
-| User Intent | CLI Translation |
-|-------------|----------------|
-| "运行所有用例" | `youqu run` |
+| User Intent | Execution |
+|-------------|-----------|
+| "运行所有YAML用例" | `yaml_run_batch(test_ids="ALL")` |
+| "运行播放模块用例" | `yaml_run_batch(test_ids="module:播放")` |
+| "运行 L1 用例" | `yaml_run_batch(test_ids="tag:L1")` |
+| "运行 test_play_005" | `yaml_run_batch(test_ids="test_play_005")` |
+| "运行指定几个用例" | `yaml_run_batch(test_ids="test_001,test_002,test_003")` |
+| "运行 music 的用例" | `yaml_list_tests(app="deepin-music")` → select → `yaml_run_batch(...)` |
+| "只收集不运行" | `yaml_list_tests(...)` (no execution needed) |
+
+**Bash fallback** (if MCP not available, blocks until complete):
+| "运行所有YAML用例" | `youqu run` |
+| "运行指定用例" | `youqu run -k test_xxx_001` |
 | "运行 music 的用例" | `youqu run -a /path/to/autotest_music` |
-| "运行 test_play_005" | `youqu run -k test_play_005` |
-| "只收集不执行" | `youqu run --collect-only` |
-| "指定报告目录" | `youqu run --alluredir=./my_report` |
-| "用例文件列表" | `youqu run -f cases/list.txt` |
-| "传递 pytest 参数" | `youqu run [any pytest args...]` |
-| "运行 YAML 用例" | `youqu run` (YAML files auto-collected) |
-| "只收集 YAML 用例" | `youqu run --collect-only` (lists both .py and .yaml) |
-| "运行 yaml/ 目录" | `youqu run yaml/` (pass through to pytest) |
-
-Extra arguments after known flags are passed through to pytest directly.
-See `youqu run --help` for available flags.
 
 ---
 
-## Step 4: Build Command
+## Step 4: Execute (MCP Async — Preferred)
 
-**Base**: `youqu run`
+**When MCP is connected**, use async batch execution:
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-a <path>` | CWD `autotest/` | Override autotest directory |
-| `--alluredir <dir>` | `autotest/report/` | Allure report output |
-| `[extra...]` | — | Passed through to pytest (e.g. `-k`, `-m`, `--lf`) |
+```
+# 1. Submit batch — returns immediately with job_id
+yaml_run_batch(test_ids="test_play_001,test_play_002", batch_size=5)
 
-**What `youqu run` does internally** (`cli/run.py`):
-1. Locate `autotest/` directory (override via `-a`, or CWD search)
-2. Compose pytest args: `-c autotest/pytest.ini --rootdir autotest/`
-3. Auto-add `--alluredir autotest/report/` if not specified
-4. Pass all remaining arguments to `pytest.main()`
+# 2. Poll status every 5 seconds
+while not done:
+    status = yaml_get_status(job_id="abc12345")
+    # status.progress shows current batch
+    if status.status in ("completed", "failed", "cancelled"):
+        break
+```
 
----
+**Response format** from `yaml_run_batch`:
+```json
+{
+  "success": true,
+  "job_id": "a1b2c3d4",
+  "status": "queued",
+  "total_batches": 3,
+  "total_cases": 12,
+  "batch_size": 5
+}
+```
 
-## Step 5: Execute
+**Response format** from `yaml_get_status`:
+```json
+{
+  "job_id": "a1b2c3d4",
+  "status": "running",
+  "progress": "batch 2/3: running test_play_005..test_play_010",
+  "elapsed_ms": 45000,
+  "result": {                        // only when completed/failed
+    "passed": 10, "failed": 1, "skipped": 1, "total": 12,
+    "completed_batches": 3, "total_batches": 3
+  }
+}
+```
+
+**Best practice**: poll every 5 seconds. DO NOT call other tools while a job is running.
+
+**To cancel**: `yaml_cancel(job_id="a1b2c3d4")` — completes current batch, then stops.
+
+## Step 5: Execute (Bash Fallback — if MCP not available)
 
 ```bash
 youqu run [args...]
 ```
 
-**What happens internally** (`cli/run.py`):
-1. `_find_autotest_dir()` → locate `autotest/` (override or CWD)
-2. Compose pytest: `-c autotest/pytest.ini --rootdir autotest/`
-3. Auto-add `--alluredir autotest/report/` if not specified
-4. `pytest.main(pytest_args)` → execute collected test cases
-
-Both `.py` and `.yaml` files are collected. YAML files must be in the directory
-configured by `yaml_files` in `pytest.ini`.
-5. Post-test: Allure report written to `autotest/report/`
-
----
+Blocks until all tests complete. Output parsed for pass/fail counts.
 
 ## Step 6: Summarize Results
 
+**From MCP async** (preferred):
+Parse `yaml_get_status(job_id).result`:
+```json
+{"passed": 10, "failed": 1, "skipped": 1, "total": 12}
+```
+
+**From Bash fallback**:
 Parse stdout for:
-- `collected N items / M deselected / K selected` → scope
 - `X passed, Y failed, Z skipped in Ts` → final counts
 - Individual FAILED lines → error details
 
 Report format:
 ```
-Total: 15 | Passed: 12 | Failed: 2 | Skipped: 1 | Time: 45.3s
+Total: 12 | Passed: 10 | Failed: 1 | Skipped: 1 | Time: 45.3s
 
 Failed:
   - test_music_play_003: AssertionError (track duration mismatch)
-
-Skipped:
-  - test_music_gesture_010: skip-触摸操作无法自动化
 ```
-
-Reports are also written to `autotest/report/` (allure/, json/, xml/, logs/).
 
 ### Failure Diagnosis (MCP, optional)
 

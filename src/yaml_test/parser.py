@@ -101,6 +101,10 @@ class TestCase(BaseModel):
 
     name: str
     app: str = ""
+    description: str = ""  # Original test steps and expected results for review reference
+    module: str = ""       # Module classification like "播放", "设置"
+    feature: str = ""      # Feature sub-classification like "本地文件", "在线流"
+    tags: list[str] = Field(default_factory=list)  # Tags like ["L1", "smoke"]
     screenshot: bool = False
     vars: dict[str, Any] = Field(default_factory=dict)
     setup: list[ActionStep] = Field(default_factory=list)
