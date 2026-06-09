@@ -49,7 +49,7 @@ class WaitCondition(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     selector: Selector
-    timeout: int = 5000
+    timeout: int = 3000
     interval: int = 200
 
 

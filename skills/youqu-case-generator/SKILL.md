@@ -303,18 +303,18 @@ vars:
 setup:
   - action: session_start
     command: "app-name"
-    wait: 3.0
+    wait: 1.0
 
 steps:
   - name: "单击确定按钮"
     action: element_action
     ref: ok_button
     do: "click"
-    wait_after: 500
+    wait_after: 300
     wait_for:
       selector:
         role: "dialog"
-      timeout: 5000
+      timeout: 3000
     assert:
       - type: element_visible
         selector:
@@ -323,14 +323,17 @@ steps:
   - name: "右键点击打开菜单"
     action: context_menu_comb
     ref: context_copy
+    wait: 0.3
 
   - name: "打开文件菜单"
     action: main_menu_comb
     ref: open_file
+    wait: 0.3
 
   - name: "点击中心区域"
     action: mouse_click
     ref: app_center
+    wait: 0.3
 
   - name: "DBus 属性验证"
     action: dbus_get_property
@@ -340,10 +343,19 @@ steps:
       object_path: "/com/example/Object"
       interface: "com.example.Interface"
       property: "SomeProperty"
+    wait: 0.3
     assert:
       - type: dbus_property
         value:
           expected: "expected_value"
+
+  # Final step: wait for last operation to take effect, then assert result
+  - name: "等待操作生效并验证"
+    action: wait
+    wait: 0.3
+    assert:
+      - type: process_running
+        app: "app-name"
 
 teardown:
   - action: session_stop
@@ -408,7 +420,7 @@ selectors (not ref) since wait_for target is transient UI state, not a registere
   ref: ok_button
   wait_for:
     selector: {role: "dialog"}
-    timeout: 5000
+    timeout: 3000
     interval: 200
 ```
 
@@ -483,11 +495,14 @@ For multi-module generation, dispatch one sub-agent per batch in parallel.
    - Generate "pass" stubs for automatable cases
    - Hardcode absolute paths
 
-6. CONTEXT:
+ 6. CONTEXT:
    - PO inheritance: Src → BaseWidget → <Module>Widget, AssertCommon → BaseCase → Test
    - Skip classification rules: @references/skip-classification.md
    - Assertion/Src methods: @references/youqu-po-pattern.md
    - MCP tools: @references/mcp-tool-reference.md
+   - YAML schema + timing guide: @references/yaml-schema.md
+   - DTK menu operations: @references/dtk-menu-guide.md
+   - E2E verified templates: @references/templates/
    - Pitfalls: @references/pitfalls.md
 ```
 
@@ -513,8 +528,14 @@ See `@references/pitfalls.md` for the complete list. Critical ones:
 9. **elements.yaml is mandatory for YAML tests.** Missing elements.yaml causes
    all ref-based steps to fail. It must exist in autotest/yaml/ alongside test files.
 10. **Wait conditions**: Always add `wait_for` before steps that depend on UI state
-   changes (dialog opens, page loads, etc.). Set reasonable timeouts (3000-10000ms).
+   changes (dialog opens, page loads, etc.). Default timeout: 3000ms.
    wait_for uses inline selectors (not ref) since it targets transient UI state.
+11. **Timing defaults are mandatory** — see `@references/yaml-schema.md` Timing Guide.
+   session_start.wait=1.0, step.wait=0.3, wait_for.timeout=3000ms. Do NOT
+   invent larger values without verification.
+12. **Last step before teardown MUST wait** — never jump from an operation directly
+   to session_stop. Add a final `action: wait` + `wait: 0.3` step with an assert
+   to verify the operation took effect before killing the app.
 
 ---
 
@@ -527,7 +548,9 @@ See `@references/pitfalls.md` for the complete list. Critical ones:
 | `@references/skip-classification.md` | Full skip rules with detection patterns |
 | `@references/atspi-tree-acquisition.md` | AT-SPI tree capture procedure (env, launch, dump, persist) |
 | `@references/pitfalls.md` | Complete pitfalls list with root causes |
-| `@references/yaml-schema.md` (NEW) | YAML schema reference with all actions, asserts, and selectors |
+| `@references/yaml-schema.md` (NEW) | YAML schema reference with all actions, asserts, selectors, and timing guide |
+| `@references/dtk-menu-guide.md` (NEW) | DTK menu operations: main menu, context menu, MenuNavigator strategies |
+| `@references/templates/` (NEW) | Verified E2E YAML templates (main menu, context menu) in ref format |
 | `@scripts/export_xlsx.py` | Batch export xlsx/csv rows to JSON |
 | `@assets/widget_template.py` | Widget file template with common method patterns |
 | `@assets/case_template.py` | Test case file template |

@@ -90,17 +90,17 @@ vars:
 setup:
   - action: session_start
     command: "app-name"
-    wait: 3.0
+    wait: 1.0
 
 steps:
   - name: "步骤描述"
     action: <action_type>
     ref: <element_alias>    # references elements.yaml entry
     # step-specific params (see Action Reference below)
-    wait_after: 500      # ms delay after step (optional)
+    wait_after: 300      # ms delay after step (optional)
     wait_for:            # poll-until condition (optional, uses inline selectors)
       selector: {...}
-      timeout: 5000
+      timeout: 3000
       interval: 200
     assert:              # assertions after step (optional, uses inline selectors)
       - type: <assert_type>
@@ -290,12 +290,58 @@ before executing the step action.
   do: "click"
   wait_for:
     selector: {role: "dialog"}
-    timeout: 5000     # ms, default 5000
+    timeout: 3000     # ms, default 3000
     interval: 200     # ms poll interval, default 200
 ```
 
 If `wait_for` times out, the step raises `TimeoutError`. The poll uses
 `find_element_by_attr` (not deep tree scan) for performance.
+
+## Timing Guide (MANDATORY)
+
+All generated YAML test cases MUST follow these timing values. Do NOT invent
+your own wait durations — they are calibrated against real DTK application
+behavior and MenuNavigator internals.
+
+### Default Wait Values
+
+| Context | Parameter | Value | Unit | Rationale |
+|---------|-----------|-------|------|-----------|
+| App launch | `session_start.wait` | 1.0 | seconds | DTK app cold start to window ready |
+| Post-action | `step.wait` (action: mouse_click, element_action, etc.) | 0.3 | seconds | UI state transition settle time |
+| Post-action | `step.wait` (menu actions: main_menu_comb, context_menu_comb) | 0.3 | seconds | MenuNavigator has built-in 0.1-0.3s sleeps; 0.3s covers the gap |
+| Post-action (ms) | `step.wait_after` | 300 | milliseconds | Same as above, in ms form |
+| Poll timeout | `wait_for.timeout` | 3000 | milliseconds | If element not found in 3s, it's a failure |
+| Poll interval | `wait_for.interval` | 200 | milliseconds | Default poll cadence |
+| Pre-teardown | Final `action: wait` step | 0.3 | seconds | Ensure last operation's effect is visible before kill |
+
+### Rules
+
+1. **Always add `wait: 0.3` after every operation step** — not just UI-triggering ones.
+   This covers animation settle, AT-SPI tree update, and state propagation.
+
+2. **Last step before teardown MUST have a `wait` and/or `assert`** — never
+   transition directly from an operation to `session_stop`. The app needs time
+   to process the last action, and the test needs to capture the result.
+
+3. **Use `wait_for` for expected UI state changes** (dialog open, page load,
+   new element appear). Prefer `wait_for` over blind `time.sleep` when you know
+   what to expect.
+
+4. **Never exceed these defaults unless verified** — if a specific operation
+   genuinely needs more time (e.g., loading a large file), document why:
+
+   ```yaml
+   # NOTE: deepin-reader needs extra time to render large PDFs
+   - action: element_action
+     ref: open_file
+     wait: 1.0
+   ```
+
+5. **`wait_for` and `step.wait` serve different purposes**:
+   - `wait_for`: Poll for a **known target** element/state → proceed when found
+   - `step.wait`: Blind sleep after action → covers unknown UI transitions
+   - Use both when needed: `wait_for` for the target, `wait` as safety margin
 
 ## Non-Automatable Cases
 

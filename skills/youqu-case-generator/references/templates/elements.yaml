@@ -1,0 +1,11 @@
+app: deepin-terminal
+
+elements:
+  theme_dark:
+    menu: ["主题", "深色"]
+
+  # Coordinates are screen-specific — adjust for your display
+  context_find:
+    x: 989
+    y: 591
+    menu: ["查找"]
