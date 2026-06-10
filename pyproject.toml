@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "youqu-framework"
-version = "2.15.0"
+version = "2.15.1"
 authors = [
     { name = "wangpeng", email = "781757836@qq.com" },
 ]
@@ -52,6 +52,7 @@ only-include = [
     "setting",
     "cli",
     "plugin",
+    "skills",
     "conftest.py",
     "__init__.py",
 ]

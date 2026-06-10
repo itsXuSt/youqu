@@ -29,9 +29,18 @@ def _inject_paths():
 
 def main():
     _inject_paths()
+    try:
+        from importlib.metadata import version as _get_version
+        _youqu_version = _get_version("youqu-framework")
+    except Exception:
+        _youqu_version = "unknown"
+
     parser = argparse.ArgumentParser(
         prog="youqu",
         description="YouQu test framework CLI",
+    )
+    parser.add_argument(
+        "--version", action="version", version=f"%(prog)s {_youqu_version}"
     )
     sub = parser.add_subparsers(dest="command")
 

@@ -36,6 +36,9 @@ class _Doctor:
         self._check_xauthority()
         self._check_accessibility()
 
+        self._check_java()
+        self._check_skills()
+
         print()
         if self._failed:
             print(
@@ -294,3 +297,91 @@ class _Doctor:
             self._fixed_msg("gsettings set toolkit-accessibility true")
         else:
             print(f"       gsettings failed: {r.stderr.strip()[-200:]}")
+
+    # ── java ──────────────────────────────────────────────────────────
+
+    def _check_java(self):
+        if shutil.which("java"):
+            result = subprocess.run(
+                ["java", "-version"],
+                capture_output=True,
+                text=True,
+            )
+            version_info = (result.stderr + result.stdout).split("\n")[0].strip()[:60]
+            self._ok(f"java ({version_info})")
+            return
+        self._fail("java missing (required for Allure HTML reports)")
+        result = self._sudo("apt", "install", "-y", "openjdk-11-jdk-headless")
+        if result.returncode == 0:
+            self._fixed_msg("apt install openjdk-11-jdk-headless")
+        else:
+            print("       install JDK manually:")
+            print("         Debian/Ubuntu: sudo apt install openjdk-11-jdk-headless")
+            print("         RHEL/openEuler: sudo yum install java-11-openjdk-headless")
+
+    # ── skills ────────────────────────────────────────────────────────
+
+    def _check_skills(self):
+        try:
+            import youqu
+            skills_dir = Path(youqu.__file__).parent / "skills"
+        except Exception:
+            return
+
+        if not skills_dir.exists() or not skills_dir.is_dir():
+            return
+
+        available = sorted([d.name for d in skills_dir.iterdir() if d.is_dir()])
+        if not available:
+            return
+
+        print(f"\n  Found {len(available)} YouQu skills: {', '.join(available)}")
+        print("  These enable AI agents to generate and run test cases automatically.")
+
+        CLI_CHOICES = {
+            "1": ("Claude", Path.home() / ".claude" / "skills"),
+            "2": ("OpenCode", Path.home() / ".config" / "opencode" / "skills"),
+        }
+
+        print("\n  Which AI agent CLI are you using?")
+        for k, (name, path) in CLI_CHOICES.items():
+            print(f"    {k}. {name:10s} → {path}")
+        print("    s. Skip (don't install skills)")
+
+        try:
+            choice = input("  Enter choice: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            print("\n  Skipped.\n")
+            return
+
+        if choice == "s":
+            return
+
+        if choice not in CLI_CHOICES:
+            print(f"\n  Unknown choice '{choice}', skipped.\n")
+            return
+
+        cli_name, target_dir = CLI_CHOICES[choice]
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        installed = 0
+        for skill_name in available:
+            src = skills_dir / skill_name
+            dst = target_dir / skill_name
+            try:
+                if dst.is_symlink():
+                    dst.unlink()
+                elif dst.exists():
+                    shutil.rmtree(dst)
+                shutil.copytree(src, dst)
+                installed += 1
+            except PermissionError:
+                print(f"  \033[31m!!\033[0m Permission denied: {dst}")
+            except OSError as e:
+                print(f"  \033[31m!!\033[0m Failed to copy {skill_name}: {e}")
+
+        if installed == len(available):
+            self._ok(f"installed {installed} skills → {target_dir}")
+        else:
+            self._fail(f"installed {installed}/{len(available)} skills")
+        print(f"  Restart {cli_name} to load the new skills.\n")
