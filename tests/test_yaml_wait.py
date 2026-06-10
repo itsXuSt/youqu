@@ -17,7 +17,7 @@ class TestWaitForFoundImmediately:
 
         result = wait_for({"name": "OK"}, timeout=5000, interval=100)
         assert result is True
-        mock_dog.find_elements_by_attr.assert_called_once_with("$/OK/")
+        mock_dog.find_elements_by_attr.assert_called_once_with("$//OK/")
 
 
 class TestWaitForFoundAfterPoll:

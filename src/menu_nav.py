@@ -36,7 +36,7 @@ class MenuNavigator:
         nav.select(["复制"])
     """
 
-    MAX_LOOP = 50  # Max iterations per menu level
+    MAX_LOOP = 30  # Max iterations per menu level (cycle detection stops earlier)
 
     def __init__(self, name=None, desc=None):
         self.app_name = name
@@ -273,11 +273,10 @@ class MenuNavigator:
                 return False
 
             mk.press_key('Down')
-            GLib.timeout_add(250, step)
+            GLib.timeout_add(100, step)
             return False
 
         GLib.timeout_add(50, step)
-        GLib.timeout_add(3000, loop.quit)
 
         loop.run()
         Atspi.EventListener.deregister(listener, 'object:state-changed:focused')

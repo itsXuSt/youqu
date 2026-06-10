@@ -26,7 +26,7 @@ class TestElementVisible:
             selector=Selector(name="OK"),
         )
         run_assert(step)
-        mock_assert.assert_called_once_with("$/OK/")
+        mock_assert.assert_called_once_with("$//OK/")
 
     @_ac_patch("assert_element_exist")
     def test_assert_element_visible_fail(self, mock_assert):
@@ -48,7 +48,7 @@ class TestElementNotVisible:
             selector=Selector(name="hidden"),
         )
         run_assert(step)
-        mock_assert.assert_called_once_with("$/hidden/")
+        mock_assert.assert_called_once_with("$//hidden/")
 
 
 class TestElementNumbers:
@@ -61,7 +61,7 @@ class TestElementNumbers:
             number=5,
         )
         run_assert(step)
-        mock_assert.assert_called_once_with("$/tab/", 5)
+        mock_assert.assert_called_once_with("$//tab/", 5)
 
 
 class TestFileExists:

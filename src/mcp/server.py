@@ -106,7 +106,7 @@ def atspi_find_element(app_name: str, expr: str, index: int = 0) -> dict:
 
     Args:
         app_name: Application name (e.g. 'deepin-music')
-        expr: Element path expression (e.g. '$/name/role')
+        expr: Element path expression (e.g. '$//name/role')
         index: Element index when multiple matches found (default 0)
     """
     from src.dogtail_utils import DogtailUtils

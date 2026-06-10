@@ -22,10 +22,10 @@ def selector_to_expr(selector: Any) -> str:
     """Convert a Selector dict or model to a YouQu AT-SPI expr string.
 
     YouQu expr format: $-prefixed, /-separated, trailing /.
-    $/name/ searches root's children for elements matching name.
+    $//name/ recursively searches all descendants for elements matching name.
 
     >>> selector_to_expr({"name": "OK"})
-    '$/OK/'
+    '$//OK/'
     >>> selector_to_expr({})
     '$/'
     """
@@ -41,7 +41,7 @@ def selector_to_expr(selector: Any) -> str:
 
     name = sel.get("name", "")
     if name:
-        return f"$/{name}/"
+        return f"$//{name}/"
     return "$/"
 
 
@@ -49,7 +49,7 @@ def _find_element(dog, attrs, idx=0):
     name = attrs.get("name", "")
     role = attrs.get("role", "")
     if name:
-        expr = f"$/{name}/"
+        expr = f"$//{name}/"
         return dog.find_element_by_attr(expr, idx)
     if role:
         from src.depends.dogtail.tree import predicate

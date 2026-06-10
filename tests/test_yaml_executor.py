@@ -23,7 +23,7 @@ from src.yaml_test.parser import ActionStep, AssertStep, Selector, TestCase
 
 class TestSelectorToExpr:
     def test_selector_to_expr_name_only(self):
-        assert selector_to_expr({"name": "OK"}) == "$/OK/"
+        assert selector_to_expr({"name": "OK"}) == "$//OK/"
 
     def test_selector_to_expr_empty_dict(self):
         assert selector_to_expr({}) == "$/"
@@ -33,7 +33,7 @@ class TestSelectorToExpr:
 
     def test_selector_to_expr_with_role(self):
         result = selector_to_expr({"name": "打开", "role": "push button"})
-        assert result == "$/打开/"
+        assert result == "$//打开/"
 
     def test_selector_to_expr_role_only(self):
         result = selector_to_expr({"role": "dialog"})
@@ -41,7 +41,7 @@ class TestSelectorToExpr:
 
     def test_selector_to_expr_from_selector_model(self):
         sel = Selector(name="test_btn")
-        assert selector_to_expr(sel) == "$/test_btn/"
+        assert selector_to_expr(sel) == "$//test_btn/"
 
 
 def _make_testcase(steps, setup=None, teardown=None, app="test-app", elements=None):
@@ -352,7 +352,7 @@ class TestRefResolution:
         )
         result = StepExecutor(tc).run()
         assert result.passed
-        dog.find_element_by_attr.assert_called_once_with("$/确定/", 0)
+        dog.find_element_by_attr.assert_called_once_with("$//确定/", 0)
         element.click.assert_called_once()
 
     @patch("src.yaml_test.executor._get_mk")
@@ -427,7 +427,7 @@ class TestRefResolution:
         )
         result = StepExecutor(tc).run()
         assert result.passed
-        dog.find_element_by_attr.assert_called_once_with("$/确定/", 0)
+        dog.find_element_by_attr.assert_called_once_with("$//确定/", 0)
 
     @patch("src.yaml_test.executor._get_dog")
     @patch("src.yaml_test.executor._get_mk")
