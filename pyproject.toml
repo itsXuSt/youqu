@@ -4,16 +4,16 @@ build-backend = "hatchling.build"
 
 [project]
 name = "youqu-framework"
-version = "2.15.1"
+version = "2.15.2"
 authors = [
     { name = "wangpeng", email = "781757836@qq.com" },
 ]
 
 description = "youqu"
 readme = "README.md"
-requires-python = ">=3.6"
+requires-python = ">=3.10"
 classifiers = [
-    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.10",
     "License :: OSI Approved :: GNU General Public License v2 (GPLv2)",
     "Operating System :: OS Independent",
 ]
@@ -31,12 +31,13 @@ dependencies = [
     "pytest-rerunfailures==10.2",
     "pytest-timeout==2.1.0",
     "tomli; python_version < '3.11'",
+    "fastmcp",
+    "httpx",
 ]
 
 [project.optional-dependencies]
 webui = ["playwright"]
 remote = ["zerorpc"]
-mcp = ["fastmcp", "httpx"]
 
 [project.scripts]
 youqu = "youqu.cli.main:main"

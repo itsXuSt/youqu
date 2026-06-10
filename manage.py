@@ -126,7 +126,7 @@ class Manage:
                 )
             except ImportError as exc:
                 logger.error(
-                    f"MCP 模式需要 Python >=3.10 并安装 fastmcp: {exc}"
+                    f"MCP server requires Python >=3.10 and fastmcp: {exc}"
                 )
 
         elif self.cmd_args[0] in ["-h", "--help"]:

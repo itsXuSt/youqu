@@ -116,12 +116,8 @@ def main():
         from youqu.cli.report import run as report_run
         report_run(autotest_path=args.app or None, clean=args.clean, serve=args.serve)
     elif args.command == "mcp":
-        try:
-            from youqu.src.mcp.server import start as mcp_start
-            mcp_start(transport=args.transport, port=args.port, host=args.host)
-        except ImportError:
-            print("MCP server requires: pip install youqu-framework[mcp]")
-            sys.exit(1)
+        from youqu.src.mcp.server import start as mcp_start
+        mcp_start(transport=args.transport, port=args.port, host=args.host)
     elif args.command == "doctor":
         from youqu.cli.doctor import run as doctor_run
         doctor_run()

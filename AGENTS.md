@@ -171,15 +171,15 @@ from setting import conf  # GlobalConfig 短别名
 自动生效: `-s -vv --no-header --show-capture=no --tb=auto -r fEs --continue-on-collection-errors --ignore=src,setting,public`。测试路径: `apps/`。最低 pytest 版本: 6.2.5。
 
 ### 代码风格
-Ruff: line-length=100, 4-space indent, Python 3.7+。仅启用 E4/E7/E9/F 规则 (大量 F 规则被 ignore)。
+Ruff: line-length=100, 4-space indent, Python 3.10+。仅启用 E4/E7/E9/F 规则 (大量 F 规则被 ignore)。
 注意: 框架核心代码 (`src/`, `conftest.py`) 在文件头大量使用 `# pylint: disable`。
 
 ### 环境要求
-- Python >= 3.6 (ruff target py37)
+- Python >= 3.10
 - 需要桌面环境 (X11 或 Wayland)，不能在 headless 下运行 UI 测试
 - DISPLAY=:0 在 `conftest.py` 中硬编码
 - 依赖通过 `env.sh` 安装 (无 requirements.txt / Pipfile / poetry.lock)
-- 可选依赖: letmego (重启类场景)
+- 可选依赖: letmego (重启类场景)，playwright (Web UI)，zerorpc (远程执行)
 
 ### 远程执行
 `manage.py remote` 通过 SSH 分发代码，`--slaves` 参数格式: `user@ip:password`，多台用 `/` 分隔。

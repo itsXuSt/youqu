@@ -24,9 +24,9 @@ if str(_project_root) not in sys.path:
 
 try:
     from fastmcp import FastMCP
-except ImportError:
-    print("Error: fastmcp is required for MCP server mode.")
-    print("Install it with: pip install fastmcp")
+except ImportError as exc:
+    print(f"Error: fastmcp is required for MCP server mode: {exc}")
+    print("Install it with: pip install youqu-framework")
     sys.exit(1)
 
 # YouQu framework exceptions inherit BaseException, not Exception.

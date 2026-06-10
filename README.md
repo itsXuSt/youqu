@@ -193,7 +193,7 @@ $ bash env.sh
 |------|----------|
 | Web UI 自动化 | `pip install youqu-framework[webui]` + `playwright install chromium` |
 | 远程执行 | `pip install youqu-framework[remote]`，需 `sshpass` |
-| MCP Server | `pip install youqu-framework[mcp]`，需 Python >= 3.10 |
+| MCP Server | 随 `pip install youqu-framework` 自动安装 |
 | Wayland 支持 | 额外需要 `g++ cmake qt5-default libkf5wayland-dev wl-clipboard` 等编译依赖 |
 
 ### 运行测试
@@ -262,13 +262,9 @@ YouQu 内置 MCP (Model Context Protocol) Server，将桌面 UI 自动化能力�
 | **VLM 视觉** | 视觉定位元素、视觉断言、自主测试 | "点击桌面左下角的终端图标" |
 | **YAML 测试执行** | 用例查询、异步批量执行、进度轮询 | 按模块/标签筛选用例，分批执行 |
 
-#### 安装依赖
+#### 启动 MCP Server
 
-MCP Server 为可选功能，需要 Python >= 3.10：
-
-```shell
-pip3 install youqu-framework[mcp]
-```
+YouQu 安装后 MCP Server 即刻用：
 
 #### VLM 配置
 
