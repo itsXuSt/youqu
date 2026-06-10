@@ -35,14 +35,20 @@ youqu --help
 # Check if autotest/ exists in current directory
 ls autotest/
 
-# List available YAML test files (default format)
+# List available YAML test files (recursive for subdirectory-organized projects)
+find autotest/yaml -name "test_*.yaml" | sort
+
+# List available YAML test files (flat layout only)
 ls autotest/yaml/test_*.yaml
 
 # List available Python test files (py mode only)
 ls autotest/case/test_*.py
 
-# Check elements.yaml (mandatory for YAML tests)
+# Check shared elements.yaml (mandatory for YAML tests, found via upward lookup)
 cat autotest/yaml/elements.yaml
+
+# Check intermediate JSON batches from generation
+ls autotest/module_batches/
 ```
 
 ---
@@ -101,7 +107,10 @@ Use filter params to narrow: `app`, `module`, `feature`, `tags` (comma-separated
 
 **Bash fallback (if MCP not available)**:
 ```bash
-# List YAML test files
+# List YAML test files (recursive for subdirectory-organized projects)
+find autotest/yaml -name "test_*.yaml" | sort
+
+# List flat layout only
 ls autotest/yaml/test_*.yaml
 
 # Query via CLI index
@@ -252,6 +261,10 @@ format for AI-generated tests — simpler syntax, built-in app lifecycle, wait_f
 All YAML test cases reference UI elements via `ref` — element aliases defined in
 `autotest/yaml/elements.yaml`. This file is **mandatory**. Without it, ref-based steps
 fail at runtime.
+
+Test cases in subdirectories (e.g. `yaml/keyboard/`) automatically find the shared
+`elements.yaml` at `yaml/` root via upward lookup (up to 4 directory levels).
+No per-directory copy needed.
 
 ```yaml
 # autotest/yaml/elements.yaml

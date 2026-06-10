@@ -5,6 +5,7 @@ Export xlsx or csv test case file to JSON batches for LLM processing.
 
 Usage:
     python3 export_xlsx.py <input.xlsx|csv> <output_dir> [--batch-size 10]
+    python3 export_xlsx.py <input.xlsx|csv> <output_dir> --autotest-root autotest [--batch-size 10]
 
 Output:
     <output_dir>/
@@ -12,6 +13,9 @@ Output:
         batch_002.json  (cases 11-20)
         ...
         batch_summary.json  (classification summary)
+
+    If --autotest-root is provided, also copies to:
+    <autotest-root>/module_batches/  (permanent reference for LLM context)
 
 JSON batch format:
     [
@@ -35,6 +39,7 @@ import csv
 import json
 import os
 import re
+import shutil
 import sys
 from collections import defaultdict
 
@@ -169,10 +174,13 @@ def main():
     input_path = sys.argv[1]
     output_dir = sys.argv[2]
     batch_size = 10
+    autotest_root = None
 
     for i, arg in enumerate(sys.argv):
         if arg == "--batch-size" and i + 1 < len(sys.argv):
             batch_size = int(sys.argv[i + 1])
+        elif arg == "--autotest-root" and i + 1 < len(sys.argv):
+            autotest_root = sys.argv[i + 1]
 
     if not os.path.exists(input_path):
         print(f"Error: input file not found: {input_path}")
@@ -247,6 +255,16 @@ def main():
     with open(filename, "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
     print(f"  Wrote {filename}")
+
+    # Copy to autotest/module_batches/ for permanent reference
+    if autotest_root:
+        module_batches_dir = os.path.join(autotest_root, "module_batches")
+        os.makedirs(module_batches_dir, exist_ok=True)
+        for fname in os.listdir(output_dir):
+            src = os.path.join(output_dir, fname)
+            dst = os.path.join(module_batches_dir, fname)
+            shutil.copy2(src, dst)
+        print(f"  Copied to {module_batches_dir}/")
 
 
 if __name__ == "__main__":

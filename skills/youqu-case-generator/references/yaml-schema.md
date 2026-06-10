@@ -3,6 +3,27 @@
 Complete reference for YouQu YAML test case format — all actions, assertions,
 element registry (elements.yaml), and ref-based element resolution.
 
+## Directory Organization
+
+YAML test cases can be organized into subdirectories for logical grouping.
+A single `elements.yaml` at the `yaml/` root is shared by all files via
+upward lookup (up to 4 directory levels):
+
+```
+yaml/
+├── elements.yaml          # shared element registry (found via upward lookup)
+├── keyboard/
+│   ├── test_kb_menu_019.yaml
+│   └── test_kb_shortcut_028.yaml
+├── remote/
+│   ├── test_remote_add_057.yaml
+│   └── test_remote_edit_058.yaml
+```
+
+Subdirectory organization gives automatic Allure report grouping — pytest-allure
+uses directory paths for `parentSuite` labels. No explicit Allure tag injection
+needed.
+
 ## Elements Registry (MANDATORY)
 
 `autotest/yaml/elements.yaml` is the single source of truth for all UI elements
@@ -365,5 +386,6 @@ YAML files follow the same convention as Python: `test_<name>_<nnn>.yaml`
 where `<nnn>` is a 3-digit padded ID. The `name` field in the YAML should
 match the test description.
 
-Files reside in `autotest/yaml/`. They're auto-discovered when
-`yaml_files = yaml` is set in `autotest/pytest.ini`.
+Files reside in `autotest/yaml/` or subdirectories (e.g. `autotest/yaml/<module>/`).
+They're auto-discovered when `yaml_files = yaml` is set in `autotest/pytest.ini`.
+The shared `elements.yaml` at `yaml/` root is found via upward lookup.

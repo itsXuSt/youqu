@@ -4,9 +4,10 @@
 """Element registry — loads, caches, and queries elements.yaml.
 
 elements.yaml is the mandatory, single-source-of-truth registry for UI
-element references in YAML test cases.  Every test-case YAML file in the
-same directory MUST have a sibling ``elements.yaml`` that defines every
-element referenced via ``ref``.
+element references in YAML test cases.  Test-case YAML files may be
+organized into subdirectories; ``load_elements()`` searches upward from
+the test file's directory up to 4 levels to find a shared ``elements.yaml``
+at the ``yaml/`` root.
 
 Each element maps a logical alias to:
 
@@ -26,6 +27,17 @@ Each element maps a logical alias to:
         y: 200
       file_open:          # keyboard menu path
         menu: ["文件", "打开"]
+
+Directory layout example::
+
+    yaml/
+    ├── elements.yaml          # shared element registry
+    ├── keyboard/
+    │   ├── test_kb_menu_019.yaml
+    │   └── test_kb_shortcut_028.yaml
+    └── remote/
+        ├── test_remote_add_057.yaml
+        └── test_remote_edit_058.yaml
 """
 
 from __future__ import annotations
@@ -40,39 +52,57 @@ class ElementError(ValueError):
     """Raised when elements.yaml is missing, empty, or a ref is not found."""
 
 
-def load_elements(testcase_yaml_path: Path) -> dict[str, dict[str, Any]]:
-    """Load ``elements.yaml`` from the directory containing a test-case YAML.
+def load_elements(
+    testcase_yaml_path: Path, max_depth: int = 4
+) -> dict[str, dict[str, Any]]:
+    """Load ``elements.yaml`` by searching upward from the test-case YAML.
+
+    Searches from ``testcase_yaml_path.parent`` upward up to *max_depth*
+    directory levels for a shared ``elements.yaml``.  This supports
+    organizing test cases into subdirectories while keeping a single
+    element registry at the ``yaml/`` root.
 
     Args:
         testcase_yaml_path: Absolute path to a ``test_*.yaml`` file.
+        max_depth: Maximum directory levels to search upward (default 4).
 
     Returns:
         ``{"alias": {attrs...}, ...}`` from the ``elements`` key.
 
     Raises:
-        ElementError: ``elements.yaml`` missing or contains no elements.
+        ElementError: ``elements.yaml`` not found or contains no elements.
     """
-    elements_file = testcase_yaml_path.parent / "elements.yaml"
-    if not elements_file.exists():
-        raise ElementError(
-            f"elements.yaml not found at {elements_file}. "
-            "Every YAML test case directory must contain an elements.yaml "
-            "that defines all element references used via 'ref'."
-        )
+    current_dir = testcase_yaml_path.parent
+    searched = []
 
-    raw = yaml.safe_load(elements_file.read_text(encoding="utf-8")) or {}
-    if not isinstance(raw, dict):
-        raise ElementError(
-            f"elements.yaml at {elements_file} is not a valid YAML mapping."
-        )
+    for _ in range(max_depth + 1):
+        candidate = current_dir / "elements.yaml"
+        searched.append(str(candidate))
+        if candidate.exists():
+            raw = yaml.safe_load(candidate.read_text(encoding="utf-8")) or {}
+            if not isinstance(raw, dict):
+                raise ElementError(
+                    f"elements.yaml at {candidate} is not a valid YAML mapping."
+                )
 
-    elements: dict[str, dict[str, Any]] = raw.get("elements", {})
-    if not elements:
-        raise ElementError(
-            f"elements.yaml at {elements_file} has no 'elements' defined."
-        )
+            elements: dict[str, dict[str, Any]] = raw.get("elements", {})
+            if not elements:
+                raise ElementError(
+                    f"elements.yaml at {candidate} has no 'elements' defined."
+                )
+            return elements
 
-    return elements
+        if current_dir.parent == current_dir:  # filesystem root
+            break
+        current_dir = current_dir.parent
+
+    searched_summary = "\n  ".join(searched)
+    raise ElementError(
+        f"elements.yaml not found (searched up to {max_depth} levels):\n"
+        f"  {searched_summary}\n"
+        "Every YAML test case directory must have access to an elements.yaml "
+        "that defines all element references used via 'ref'."
+    )
 
 
 def resolve_ref(

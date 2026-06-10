@@ -66,11 +66,13 @@ silently.
 **xlsx/csv mode**: Use the export script to produce JSON batches:
 
 ```bash
-python3 @scripts/export_xlsx.py <xlsx_or_csv_path> <output_dir> --batch-size 10
+# Save intermediate JSON to autotest/module_batches/ for permanent reference
+python3 @scripts/export_xlsx.py <xlsx_or_csv_path> --autotest-root autotest --batch-size 10
 ```
 
 Each batch is a JSON file containing ≤10 cases with fields: id, title, module,
-precondition, steps, expected, priority, case_type.
+precondition, steps, expected, priority, case_type. Batches are saved to
+`autotest/module_batches/` and also to the specified output directory.
 
 **feature mode**: Gather context manually from PR descriptions, git diffs, etc.
 
@@ -89,17 +91,23 @@ youqu make <name> --format py      # Python only (widget/case/ui.ini)
 youqu make <name> --format all     # Both YAML + Python
 ```
 
-**Default (yaml)** — YAML is the primary format. Only `yaml/` directory with `elements.yaml`:
+**Default (yaml)** — YAML is the primary format. `yaml/` directory with shared `elements.yaml`:
 ```
 autotest/
 ├── yaml/
-│   ├── elements.yaml           # MANDATORY element registry
-│   └── test_<name>_001.yaml
+│   ├── elements.yaml           # MANDATORY shared element registry (upward lookup supported)
+│   ├── test_<name>_001.yaml    # sample flat-layout case
+│   └── <module>/               # optional module subdirectory (Allure auto-groups by dir)
+│       └── test_<name>_002.yaml
+├── module_batches/             # intermediate JSON from xlsx/csv export (permanent reference)
 ├── conftest.py
 ├── pytest.ini
 ├── config.ini
 └── report/
 ```
+
+Subdirectory YAML files automatically find the shared `elements.yaml` at `yaml/` root
+via upward lookup (up to 4 levels). No per-directory copy needed.
 
 **py mode** — Python with Page Object:
 ```
@@ -241,7 +249,22 @@ Check:
 
 ### Step 8: Generate YAML Test Cases (Preferred)
 
-For automatable cases, generate YAML files in `autotest/yaml/`.
+For automatable cases, generate YAML files in `autotest/yaml/`. Organize files
+into module subdirectories when the case count warrants it (e.g. 10+ cases per module):
+
+```
+autotest/yaml/
+├── elements.yaml            # shared registry (found via upward lookup)
+├── keyboard/
+│   ├── test_kb_menu_019.yaml
+│   └── test_kb_shortcut_028.yaml
+├── remote/
+│   ├── test_remote_add_057.yaml
+│   └── test_remote_edit_058.yaml
+```
+
+Subdirectory organization gives automatic Allure report grouping (pytest-allure
+uses directory paths for `parentSuite` labels). No explicit Allure tag injection needed.
 
 **Prerequisite**: `autotest/yaml/elements.yaml` must contain element aliases for all
 UI elements referenced by test cases. This file is mandatory — test cases use `ref` to
@@ -477,8 +500,9 @@ For multi-module generation, dispatch one sub-agent per batch in parallel.
    Target app: <app_name>. Working dir: <project_root>.
 
 2. EXPECTED OUTCOME:
-   - YAML files in autotest/yaml/ (preferred, for automatable cases)
-   - elements.yaml populated with all UI elements from AT-SPI tree
+   - YAML files in autotest/yaml/ or autotest/yaml/<module>/ (subdirectory for multi-module projects)
+   - elements.yaml populated with all UI elements from AT-SPI tree (at yaml/ root)
+   - Intermediate JSON batches saved to autotest/module_batches/ for permanent reference
    - Python files in autotest/case/ (fallback, for complex cases)
    - <count> YAML or Python files total
    - 1 Widget file in autotest/widget/<module>_widget.py (py mode only)
@@ -543,7 +567,9 @@ See `@references/pitfalls.md` for the complete list. Critical ones:
    scatter element info across files and cause ambiguity. All elements must be
    registered in elements.yaml. The executor resolves ref at runtime.
 9. **elements.yaml is mandatory for YAML tests.** Missing elements.yaml causes
-   all ref-based steps to fail. It must exist in autotest/yaml/ alongside test files.
+   all ref-based steps to fail. Place it at `autotest/yaml/elements.yaml` (the
+   shared root). Subdirectory test files find it via upward lookup (searches up
+   to 4 directory levels).
 10. **Wait conditions**: Always add `wait_for` before steps that depend on UI state
    changes (dialog opens, page loads, etc.). Default timeout: 3000ms.
    wait_for uses inline selectors (not ref) since it targets transient UI state.
