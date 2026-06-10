@@ -51,7 +51,7 @@ class YamlIndex:
         """
         tests = []
 
-        for yaml_file in sorted(self.yaml_dir.glob("test_*.yaml")):
+        for yaml_file in sorted(self.yaml_dir.rglob("test_*.yaml")):
             try:
                 raw = yaml.safe_load(yaml_file.read_text(encoding="utf-8")) or {}
                 if not isinstance(raw, dict):
@@ -61,7 +61,7 @@ class YamlIndex:
 
                 test_meta = {
                     "id": file_id,
-                    "file": yaml_file.name,
+                    "file": str(yaml_file.relative_to(self.yaml_dir)),
                     "name": raw.get("name", ""),
                     "description": raw.get("description", ""),
                     "module": raw.get("module", ""),

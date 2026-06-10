@@ -36,7 +36,7 @@ def pytest_collect_file(parent, file_path: Path):
     if file_path.suffix != ".yaml":
         return None
 
-    if file_path.name == "elements.yaml":
+    if file_path.name in ("elements.yaml", "index.yaml"):
         return None
 
     for d in yaml_dirs:

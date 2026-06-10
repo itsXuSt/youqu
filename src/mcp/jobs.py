@@ -166,6 +166,7 @@ def execute_batches(
     batch_size: int = 5,
     progress_callback: Callable[[str], None] | None = None,
     cancel_event: threading.Event | None = None,
+    file_map: dict[str, str] | None = None,
 ) -> dict:
     """Execute YAML test cases in batches via pytest subprocess.
 
@@ -176,6 +177,10 @@ def execute_batches(
         batch_size: Max test cases per batch (default 5)
         progress_callback: Called with progress messages
         cancel_event: Set to cancel between batches
+        file_map: test_id → relative file path from yaml_dir
+            (e.g. {'test_play_001': '播放/test_play_001.yaml'}).
+            When None or when an ID is not in the map, falls back to
+            ``{test_id}.yaml``.
 
     Returns:
         dict with keys: passed, failed, skipped, total, batches[...]
@@ -205,7 +210,10 @@ def execute_batches(
         if progress_callback:
             progress_callback(progress_msg)
 
-        file_paths = [str(yaml_dir / f"{tid}.yaml") for tid in batch]
+        if file_map:
+            file_paths = [str(yaml_dir / file_map.get(tid, f"{tid}.yaml")) for tid in batch]
+        else:
+            file_paths = [str(yaml_dir / f"{tid}.yaml") for tid in batch]
         cmd = [
             sys.executable, "-m", "pytest",
             "-c", str(pytest_ini_dir / "pytest.ini"),

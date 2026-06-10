@@ -923,14 +923,22 @@ def yaml_run_batch(
         idx = YamlIndex(yaml_dir)
 
         if test_ids.strip().upper() == "ALL":
-            ids = [t["id"] for t in idx.query()]
+            query_results = idx.query()
+            ids = [t["id"] for t in query_results]
+            file_map = {t["id"]: t["file"] for t in query_results}
         elif test_ids.startswith("module:"):
-            ids = [t["id"] for t in idx.query(module=test_ids[len("module:"):].strip())]
+            query_results = idx.query(module=test_ids[len("module:"):].strip())
+            ids = [t["id"] for t in query_results]
+            file_map = {t["id"]: t["file"] for t in query_results}
         elif test_ids.startswith("tag:"):
             tag_list = [t.strip() for t in test_ids[len("tag:"):].strip().split(",") if t.strip()]
-            ids = [t["id"] for t in idx.query(tags=tag_list)]
+            query_results = idx.query(tags=tag_list)
+            ids = [t["id"] for t in query_results]
+            file_map = {t["id"]: t["file"] for t in query_results}
         else:
             ids = [tid.strip() for tid in test_ids.split(",") if tid.strip()]
+            known = {t["id"]: t["file"] for t in idx.load()}
+            file_map = {tid: known[tid] for tid in ids if tid in known} or None
 
         if not ids:
             return {"success": False, "error": "No test IDs resolved"}
@@ -944,6 +952,7 @@ def yaml_run_batch(
                 test_ids=ids, yaml_dir=str(yaml_dir),
                 pytest_ini_dir=str(pytest_ini_dir), batch_size=batch_size,
                 progress_callback=None, cancel_event=None,
+                file_map=file_map,
             )
 
         job = jm.submit(_run)

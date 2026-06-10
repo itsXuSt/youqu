@@ -90,6 +90,93 @@ app: "deepin-music"
         assert tests[0]["app"] == ""
 
 
+class TestSubdirectoryScan:
+    def test_rebuild_scans_subdirs(self, tmp_path):
+        yaml_dir = tmp_path / "yaml"
+        yaml_dir.mkdir()
+        (yaml_dir / "elements.yaml").write_text("app: test\n", encoding="utf-8")
+        (yaml_dir / "test_root_001.yaml").write_text(
+            "name: Root\n", encoding="utf-8"
+        )
+        sub_dir = yaml_dir / "播放"
+        sub_dir.mkdir()
+        (sub_dir / "test_play_001.yaml").write_text(
+            'name: "播放测试"\nmodule: "播放"\n', encoding="utf-8"
+        )
+        (sub_dir / "test_play_002.yaml").write_text(
+            'name: "暂停测试"\nmodule: "播放"\n', encoding="utf-8"
+        )
+        sub_dir2 = yaml_dir / "设置"
+        sub_dir2.mkdir()
+        (sub_dir2 / "test_settings_001.yaml").write_text(
+            'name: "设置测试"\nmodule: "设置"\n', encoding="utf-8"
+        )
+
+        idx = YamlIndex(yaml_dir)
+        tests = idx.rebuild()
+        assert len(tests) == 4
+        ids = {t["id"] for t in tests}
+        assert ids == {
+            "test_root_001",
+            "test_play_001",
+            "test_play_002",
+            "test_settings_001",
+        }
+
+    def test_file_field_includes_subdir_path(self, tmp_path):
+        yaml_dir = tmp_path / "yaml"
+        yaml_dir.mkdir()
+        (yaml_dir / "elements.yaml").write_text("app: test\n", encoding="utf-8")
+        sub_dir = yaml_dir / "播放"
+        sub_dir.mkdir()
+        (sub_dir / "test_play_001.yaml").write_text(
+            'name: "播放测试"\n', encoding="utf-8"
+        )
+
+        idx = YamlIndex(yaml_dir)
+        tests = idx.rebuild()
+        assert tests[0]["file"] == "播放/test_play_001.yaml"
+
+    def test_root_file_still_has_flat_path(self, tmp_path):
+        yaml_dir = tmp_path / "yaml"
+        yaml_dir.mkdir()
+        (yaml_dir / "elements.yaml").write_text("app: test\n", encoding="utf-8")
+        (yaml_dir / "test_root_001.yaml").write_text(
+            "name: Root\n", encoding="utf-8"
+        )
+
+        idx = YamlIndex(yaml_dir)
+        tests = idx.rebuild()
+        assert tests[0]["file"] == "test_root_001.yaml"
+
+    def test_query_works_with_subdir_files(self, tmp_path):
+        yaml_dir = tmp_path / "yaml"
+        yaml_dir.mkdir()
+        (yaml_dir / "elements.yaml").write_text("app: test\n", encoding="utf-8")
+        sub_dir = yaml_dir / "播放"
+        sub_dir.mkdir()
+        (sub_dir / "test_play_001.yaml").write_text(
+            'name: "播放测试"\nmodule: "播放"\ntags: ["L1"]\n', encoding="utf-8"
+        )
+        sub_dir2 = yaml_dir / "设置"
+        sub_dir2.mkdir()
+        (sub_dir2 / "test_settings_001.yaml").write_text(
+            'name: "设置测试"\nmodule: "设置"\ntags: ["L2"]\n', encoding="utf-8"
+        )
+
+        idx = YamlIndex(yaml_dir)
+        idx.rebuild()
+
+        play_tests = idx.query(module="播放")
+        assert len(play_tests) == 1
+        assert play_tests[0]["id"] == "test_play_001"
+        assert play_tests[0]["file"] == "播放/test_play_001.yaml"
+
+        l2_tests = idx.query(tags=["L2"])
+        assert len(l2_tests) == 1
+        assert l2_tests[0]["id"] == "test_settings_001"
+
+
 class TestLoadAndAutoRebuild:
     def test_load_auto_rebuilds_when_index_missing(self, tmp_path):
         yaml_dir = _make_yaml_dir(tmp_path, {
