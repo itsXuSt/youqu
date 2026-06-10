@@ -90,6 +90,11 @@ def main():
     p_sp = sub.add_parser("startproject", help="Create project from template")
     p_sp.add_argument("name", nargs="?", help="Project name (default: youqu)")
 
+    # youqu inspect <app_path> [app_args...]
+    p_inspect = sub.add_parser("inspect", help="Inspect app accessibility events (NDJSON output)")
+    p_inspect.add_argument("app_path", help="Application executable path")
+    p_inspect.add_argument("app_args", nargs="*", help="Arguments passed to application")
+
     args, extra = parser.parse_known_args()
 
     if args.command == "make":
@@ -117,6 +122,14 @@ def main():
     elif args.command == "startproject":
         from youqu.src.startproject import cli
         cli()
+    elif args.command == "inspect":
+        try:
+            from youqu.src.atspi_inspector import AtspiInspector
+            inspector = AtspiInspector()
+            inspector.inspect(args.app_path, args.app_args)
+        except ImportError as e:
+            print(f"AT-SPI inspector requires: sudo apt install at-spi2-core python3-pyatspi\n{e}", file=sys.stderr)
+            sys.exit(1)
     else:
         parser.print_help()
         sys.exit(1)
