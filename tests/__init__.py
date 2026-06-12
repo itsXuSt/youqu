@@ -119,3 +119,33 @@ _jobs_spec = _ilu.spec_from_file_location("src.mcp.jobs", str(_jobs_path))
 _jobs_mod = _ilu.module_from_spec(_jobs_spec)
 sys.modules["src.mcp.jobs"] = _jobs_mod
 _jobs_spec.loader.exec_module(_jobs_mod)
+
+_src_yaml_test_batch_runner = _src_yaml_test / "batch_runner.py"
+_spec_br = _ilu.spec_from_file_location("src.yaml_test.batch_runner", str(_src_yaml_test_batch_runner))
+_mod_br = _ilu.module_from_spec(_spec_br)
+_mod_br.__package__ = "src.yaml_test"
+sys.modules["src.yaml_test.batch_runner"] = _mod_br
+_spec_br.loader.exec_module(_mod_br)
+setattr(_yaml_test_pkg, "batch_runner", _mod_br)
+
+_cli_pkg = _types.ModuleType("cli")
+_cli_pkg.__path__ = [str(_project_root / "cli")]
+_cli_pkg.__package__ = "cli"
+_cli_pkg.__file__ = str(_project_root / "cli" / "__init__.py")
+sys.modules["cli"] = _cli_pkg
+
+_cli_run_spec = _ilu.spec_from_file_location("cli.run", str(_project_root / "cli" / "run.py"))
+_cli_run_mod = _ilu.module_from_spec(_cli_run_spec)
+_cli_run_mod.__package__ = "cli"
+sys.modules["cli.run"] = _cli_run_mod
+_cli_run_spec.loader.exec_module(_cli_run_mod)
+setattr(_cli_pkg, "run", _cli_run_mod)
+
+_cli_multica_spec = _ilu.spec_from_file_location(
+    "cli.multica_report", str(_project_root / "cli" / "multica_report.py"),
+)
+_cli_multica_mod = _ilu.module_from_spec(_cli_multica_spec)
+_cli_multica_mod.__package__ = "cli"
+sys.modules["cli.multica_report"] = _cli_multica_mod
+_cli_multica_spec.loader.exec_module(_cli_multica_mod)
+setattr(_cli_pkg, "multica_report", _cli_multica_mod)

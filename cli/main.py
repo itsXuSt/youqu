@@ -59,6 +59,42 @@ def main():
     # youqu run [pytest args...]
     p_run = sub.add_parser("run", help="Run tests from autotest/")
     p_run.add_argument("-a", "--app", default="", help="Override autotest path")
+    p_run.add_argument(
+        "--multica-report",
+        action="store_true",
+        default=False,
+        help="Enable multica batch execution with progress reporting",
+    )
+    p_run.add_argument(
+        "--issue-id",
+        type=str,
+        default="",
+        help="Multica issue ID (required with --multica-report)",
+    )
+    p_run.add_argument(
+        "--batch-size",
+        type=int,
+        default=20,
+        help="Cases per batch (default: 20)",
+    )
+    p_run.add_argument(
+        "--case-timeout",
+        type=int,
+        default=90,
+        help="Per-case timeout in seconds (default: 90)",
+    )
+    p_run.add_argument(
+        "--module",
+        type=str,
+        default="",
+        help="Filter by module name",
+    )
+    p_run.add_argument(
+        "--tag",
+        type=str,
+        default="",
+        help="Filter by tags (comma-separated)",
+    )
 
     # youqu report
     p_report = sub.add_parser("report", help="Generate Allure HTML report")
@@ -149,8 +185,20 @@ def main():
         from youqu.cli.make import generate
         generate(args.name, args.dir, fmt=args.format)
     elif args.command == "run":
+        if args.multica_report and not args.issue_id:
+            print("Error: --issue-id is required when --multica-report is set")
+            sys.exit(1)
         from youqu.cli.run import run
-        run(autotest_path=args.app or None, extra=extra)
+        run(
+            autotest_path=args.app or None,
+            extra=extra,
+            multica_report=args.multica_report,
+            issue_id=args.issue_id,
+            batch_size=args.batch_size,
+            case_timeout=args.case_timeout,
+            module=args.module,
+            tag=args.tag,
+        )
     elif args.command == "report":
         from youqu.cli.report import run as report_run
         report_run(autotest_path=args.app or None, clean=args.clean, serve=args.serve)

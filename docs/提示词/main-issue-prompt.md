@@ -4,7 +4,6 @@
 
 - 标题：`[自动化测试] {应用名} 全量 YAML 用例回归执行`
 - labels：`automation`, `youqu`
-- assignee：`youqu-orchestrator`
 
 ---
 

@@ -1,19 +1,24 @@
 ---
 name: youqu-case-runner
-version: "0.4.0"
+version: "0.5.0"
 description: >
   Execute YouQu test cases via natural language, translating intent to
   `youqu run` CLI arguments. Supports both Python (.py) and YAML (.yaml)
-  test formats.
+  test formats. Supports multica issue-driven execution with automatic
+  progress reporting.
   Use whenever: 运行用例, 执行测试, 跑用例, YAML用例, run test cases,
   run L1 tests, run smoke tests, youqu run, 执行autotest.
 ---
 
 # YouQu Case Runner
 
-Execute YouQu Python test cases through natural language. This skill translates
+Execute YouQu test cases through natural language. This skill translates
 user intent into `youqu run` CLI invocations, runs tests, and summarizes
 results. All execution goes through `youqu run` — never raw `pytest`.
+
+**Two modes**: General mode (flexible, supports all formats, allows filtering
+and diagnosis) and Multica mode (constrained, single-command, auto-reported
+to multica issues).
 
 **Workflow context**: This skill works with `youqu-case-generator`. The generator
 produces Python test files from xlsx/csv source documents + AT-SPI tree data.
@@ -229,6 +234,91 @@ This helps distinguish: environment issue vs product bug vs script defect.
 
 ---
 
+## Multica Mode
+
+When executing tests for a multica issue (identified by `--multica-report` flag),
+the execution follows a constrained, single-command flow. **This is the preferred
+mode for multica-driven testing.**
+
+### When to Use Multica Mode
+
+Use when the agent receives a multica issue (has issue ID like `MUL-123` or UUID)
+and needs to execute tests with automatic progress reporting.
+
+### Core Constraints (Multica Mode Only)
+
+1. **NO exploration** — do not read files, search code, or analyze project structure
+2. **NO retry** — test failures are final, do not re-run, debug, or analyze
+3. **NO diagnosis** — no `screenshot_save`, no `atspi_dump_tree`, no manual investigation
+4. **Single command** — execute exactly one `youqu run` command, then stop
+5. **NO manual filtering** — never add `-k`, `-m`, or other pytest filter args
+
+### Multica Execution Command
+
+Extract parameters from issue description, then run:
+
+```bash
+youqu run -a <autotest_path> --multica-report --issue-id <ISSUE_ID> [options]
+```
+
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `-a <path>` | Yes | — | Autotest directory path |
+| `--multica-report` | Yes | — | Enable multica mode (triggers batch execution + progress comments) |
+| `--issue-id <ID>` | Yes (with --multica-report) | — | Multica issue ID (e.g. `MUL-123` or UUID) |
+| `--module <name>` | No | — | Filter by module name |
+| `--tag <tag>` | No | — | Filter by tag (comma-separated for multiple, e.g. `L1,smoke`) |
+| `--batch-size <N>` | No | 20 | Cases per batch |
+| `--case-timeout <N>` | No | 90 | Per-case timeout in seconds |
+
+### Parameter Extraction
+
+| Issue Field | Maps To | Example |
+|-------------|---------|---------|
+| app_path | `-a <value>` | `-a apps/autotest_deepin_music` |
+| module | `--module <value>` | `--module 播放` |
+| tag | `--tag <value>` | `--tag L1` or `--tag L1,smoke` |
+| batch_size | `--batch-size <N>` | `--batch-size 10` |
+
+### Examples
+
+Full test run:
+```bash
+youqu run -a apps/autotest_deepin_music --multica-report --issue-id MUL-123
+```
+
+Module-scoped:
+```bash
+youqu run -a apps/autotest_deepin_music --multica-report --issue-id MUL-456 --module 播放
+```
+
+Tag-scoped:
+```bash
+youqu run -a apps/autotest_deepin_music --multica-report --issue-id MUL-789 --tag L1,smoke
+```
+
+### What Happens Automatically
+
+The `--multica-report` command handles internally:
+- Test case discovery via `YamlIndex.query()`
+- Per-case subprocess execution with configurable timeout
+- Batch progress comments posted to the multica issue automatically
+- Allure report data merge into unified directory
+- File locking (`fcntl.flock`) to prevent concurrent execution
+- Heartbeat output to prevent daemon watchdog timeout
+
+### Multica vs General Mode
+
+| Feature | General Mode | Multica Mode |
+|---------|-------------|--------------|
+| Filtering | `-k`, `-m`, tags all allowed | Only `--module` and `--tag` |
+| Failure diagnosis | Yes (screenshot, AT-SPI tree) | No (forbidden) |
+| Progress reporting | Manual (agent reports) | Automatic (CLI posts comments) |
+| Execution | MCP async or bash | CLI subprocess only |
+| Retry on failure | Optional | Forbidden |
+
+---
+
 ## Pitfalls
 
 1. **App not running = false failures**: AT-SPI operations on non-existent windows
@@ -248,6 +338,15 @@ This helps distinguish: environment issue vs product bug vs script defect.
 6. **YAML cases need yaml_files in pytest.ini**: The generated `autotest/pytest.ini`
    includes `yaml_files = yaml`. If you create a project without the skeleton,
    add this line manually.
+
+7. **Multica mode is single-shot**: `youqu run --multica-report` runs everything
+   in one invocation. Do NOT split into multiple commands or add extra flags.
+
+8. **Multica requires issue-id**: `--multica-report` without `--issue-id` will
+   error and exit immediately.
+
+9. **Multica is YAML-only**: Multica mode only discovers and executes YAML test
+   cases. Python PO tests are not included.
 
 ---
 

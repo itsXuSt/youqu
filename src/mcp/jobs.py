@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
+from src.yaml_test.batch_runner import _parse_pytest_output as _parse_pytest_output
+
 logger = logging.getLogger(__name__)
 
 
@@ -256,23 +258,3 @@ def execute_batches(
         "batches": results,
     }
 
-
-def _parse_pytest_output(output: str) -> dict:
-    """Parse pytest stdout for pass/fail/skip counts."""
-    passed = 0
-    failed = 0
-    skipped = 0
-    for line in output.splitlines():
-        line = line.strip()
-        import re
-        # Primary pattern: "X passed, Y failed, Z skipped"
-        m = re.search(r"(\d+)\s+passed", line)
-        if m:
-            passed = int(m.group(1))
-            m2 = re.search(r"(\d+)\s+failed", line)
-            if m2:
-                failed = int(m2.group(1))
-            m3 = re.search(r"(\d+)\s+skipped", line)
-            if m3:
-                skipped = int(m3.group(1))
-    return {"passed": passed, "failed": failed, "skipped": skipped}
