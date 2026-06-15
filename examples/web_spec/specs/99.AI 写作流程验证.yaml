@@ -1,0 +1,331 @@
+id: "99.AI 写作流程验证"
+title: "AI 写作流程验证"
+module: "AI 写作"
+
+steps:
+  - order: 1
+    description: "点击侧边栏 AI 写作图标"
+    actions:
+      - type: click
+        locator:
+          strategy: bem_css
+          value: ".window-sidebar .icon-ai-writing"
+
+  - order: 2
+    description: "校验页面切换至写作欢迎页"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".welcome-view"
+      - type: text_contains
+        locator:
+          strategy: bem_css
+          value: ".welcome-view__name"
+        expected: "写作"
+
+  - order: 3
+    description: "校验输入区域存在模板编辑器及模板变量输入"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".template-editor"
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".template-editor .te-pm-variable-input"
+
+  - order: 4
+    description: "聚焦模板编辑器，全选并删除已有内容，校验内容"
+    actions:
+      - type: click
+        locator:
+          strategy: bem_css
+          value: ".template-editor"
+      - type: press_key
+        key: "Control+A"
+      - type: press_key
+        key: "Delete"
+    assertions:
+      - type: text_equals
+        locator:
+          strategy: bem_css
+          value: ".template-editor"
+        expected: "请输入文档的主题和需求，小U同学会帮你完成创作。"
+
+  - order: 5
+    description: "在输入框中输入'怎么写大纲?'"
+    actions:
+      - type: input_text
+        locator:
+          strategy: bem_css
+          value: ".input-area__field"
+        value: "怎么写大纲?"
+
+  - order: 6
+    description: "点击发送按钮"
+    actions:
+      - type: click
+        locator:
+          strategy: bem_css
+          value: ".input-area__send-button"
+
+  - order: 7
+    description: "等待大纲生成完成"
+    actions:
+      - type: wait_for
+        locator:
+          strategy: bem_css
+          value: ".outline-viewer"
+        timeout_ms: 60000
+
+  - order: 8
+    description: "校验大纲存在标题、章节、子章节、新增章节按钮"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".outline-title"
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".outline-section"
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".outline-subsection"
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".outline-viewer__add-section"
+
+  - order: 9
+    description: "校验章节存在删除按钮"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".outline-section .icon-trash"
+
+  - order: 10
+    description: "校验章节存在添加子章节按钮"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".outline-section .icon-add"
+
+  - order: 11
+    description: "删除第一个章节：点击第一个 outline-section 的删除按钮"
+    actions:
+      - type: click
+        locator:
+          strategy: css
+          value: ".outline-section:nth-child(1) .icon-trash"
+
+  - order: 12
+    description: "校验弹出确认删除对话框，包含确认文本"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".common-dialog"
+      - type: text_contains
+        locator:
+          strategy: bem_css
+          value: ".common-dialog"
+        expected: "是否删除该标题？"
+
+  - order: 13
+    description: "点击对话框中的删除按钮"
+    actions:
+      - type: click
+        locator:
+          strategy: text
+          value: "删除"
+          exact: true
+
+  - order: 14
+    description: "校验对话框已关闭"
+    assertions:
+      - type: not_visible
+        locator:
+          strategy: bem_css
+          value: ".common-dialog"
+        timeout_ms: 5000
+
+  - order: 15
+    description: "检验删除后第一个章节序号为'一'"
+    assertions:
+      - type: text_contains
+        locator:
+          strategy: css
+          value: ".outline-section:nth-child(1) .outline-section__title"
+        expected: "一"
+
+  - order: 16
+    description: "hover 第一个章节的第一个子章节，确认存在删除子章节按钮"
+    actions:
+      - type: hover
+        locator:
+          strategy: css
+          value: ".outline-section:nth-child(1) .outline-subsection:nth-child(1)"
+    assertions:
+      - type: visible
+        locator:
+          strategy: css
+          value: ".outline-section:nth-child(1) .outline-subsection:nth-child(1)"
+      - type: visible
+        locator:
+          strategy: css
+          value: ".outline-subsection__delete"
+
+  - order: 17
+    description: "点击删除子章节按钮"
+    actions:
+      - type: click
+        locator:
+          strategy: css
+          value: ".outline-subsection__delete"
+
+  - order: 18
+    description: "校验弹出确认删除对话框，包含确认文本"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".common-dialog"
+      - type: text_contains
+        locator:
+          strategy: bem_css
+          value: ".common-dialog"
+        expected: "是否删除该标题？"
+
+  - order: 19
+    description: "点击对话框中的删除按钮"
+    actions:
+      - type: click
+        locator:
+          strategy: text
+          value: "删除"
+          exact: true
+
+  - order: 20
+    description: "校验对话框已关闭"
+    assertions:
+      - type: not_visible
+        locator:
+          strategy: bem_css
+          value: ".common-dialog"
+        timeout_ms: 5000
+
+  - order: 21
+    description: "确认该章节第一个子章节序号为1"
+    assertions:
+      - type: text_contains
+        locator:
+          strategy: css
+          value: ".outline-section:nth-child(1) .outline-subsection:nth-child(1)"
+        expected: "1"
+
+  - order: 22
+    description: "点击增加章节按钮"
+    actions:
+      - type: click
+        locator:
+          strategy: bem_css
+          value: ".outline-viewer__add-section"
+
+  - order: 23
+    description: "校验新增章节编辑态存在"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".outline-section--adding"
+
+  - order: 24
+    description: "输入新增章节名称并回车确认"
+    actions:
+      - type: input_text
+        locator:
+          strategy: bem_css
+          value: ".outline-section--adding"
+        value: "新增章节测试"
+      - type: press_key
+        key: "Enter"
+    assertions:
+      - type: text_contains
+        locator:
+          strategy: css
+          value: ".outline-viewer__sections .outline-section:last-child"
+        expected: "新增章节测试"
+
+  - order: 25
+    description: "点击最后一个章节的添加子章节按钮"
+    actions:
+      - type: click
+        locator:
+          strategy: css
+          value: ".outline-section:last-child .icon-add"
+
+  - order: 26
+    description: "校验新增子章节编辑态存在"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".outline-subsection--adding"
+
+  - order: 27
+    description: "输入子章节名称并回车确认"
+    actions:
+      - type: input_text
+        locator:
+          strategy: bem_css
+          value: ".outline-subsection--adding"
+        value: "增加子章节测试"
+      - type: press_key
+        key: "Enter"
+    assertions:
+      - type: text_contains
+        locator:
+          strategy: css
+          value: ".outline-section:last-child"
+        expected: "增加子章节测试"
+
+  - order: 28
+    description: "确认页面内存在快速输入按钮，内容为'基于大纲生成文档'"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".quick-input-button"
+      - type: text_contains
+        locator:
+          strategy: bem_css
+          value: ".quick-input-button"
+        expected: "基于大纲生成文档"
+
+  - order: 29
+    description: "点击快速输入按钮"
+    actions:
+      - type: click
+        locator:
+          strategy: bem_css
+          value: ".quick-input-button"
+
+  - order: 30
+    description: "校验快速输入按钮不可见，聊天区包含生成文档内容"
+    assertions:
+      - type: not_visible
+        locator:
+          strategy: bem_css
+          value: ".quick-input-button"
+        timeout_ms: 5000
+      - type: text_contains
+        locator:
+          strategy: bem_css
+          value: ".chat-view__messages"
+        expected: "基于大纲生成文档"

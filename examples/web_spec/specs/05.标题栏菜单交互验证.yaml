@@ -1,0 +1,63 @@
+id: "05.标题栏菜单交互验证"
+title: "标题栏菜单交互验证"
+module: "顶部标题栏"
+
+steps:
+  - order: 1
+    description: "验证标题栏存在"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".title-bar"
+
+  - order: 2
+    description: "验证标题栏右侧按钮区存在"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".title-bar-right"
+
+  - order: 3
+    description: "点击主菜单按钮"
+    actions:
+      - type: click
+        locator:
+          strategy: bem_css
+          value: ".title-bar__button .icon-icon_titlebar_menu"
+
+  - order: 4
+    description: "验证菜单弹出"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".title-bar .menu--root"
+
+  - order: 5
+    description: "验证菜单包含主题切换选项"
+    assertions:
+      - type: text_contains
+        locator:
+          strategy: bem_css
+          value: ".title-bar .menu--root"
+        expected:
+          - "主题"
+
+  - order: 6
+    description: "验证菜单包含帮助选项"
+    assertions:
+      - type: text_contains
+        locator:
+          strategy: bem_css
+          value: ".title-bar .menu--root"
+        expected:
+          - "帮助"
+          - "关于"
+
+  - order: 7
+    description: "关闭菜单（按 Escape）"
+    actions:
+      - type: press_key
+        key: "Escape"

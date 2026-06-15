@@ -1,0 +1,47 @@
+id: "100.1998193-验证agent角色"
+title: "验证模型返回身份信息"
+module: "普通对话"
+
+steps:
+  - order: 1
+    description: "在输入框中输入'你是谁'"
+    actions:
+      - type: input_text
+        locator:
+          strategy: bem_css
+          value: ".input-area__field"
+        value: "你是谁"
+
+  - order: 2
+    description: "点击发送按钮"
+    actions:
+      - type: click
+        locator:
+          strategy: bem_css
+          value: ".input-area__send-button"
+
+  - order: 3
+    description: "等待模型回复消息出现"
+    actions:
+      - type: wait_for
+        timeout_ms: 300000
+        locator:
+          strategy: css
+          value: ".message-navigator:last-child"
+
+  - order: 4
+    description: "验证回复内容包含'小U同学'"
+    assertions:
+      - type: text_contains
+        timeout_ms: 30000
+        locator:
+          strategy: css
+          value: ".message-navigator:last-child"
+        expected: "小U同学"
+
+quality_notes:
+  - "fill 动作的文本值参数名（value）在 spec 格式中未显式定义，可能与 locator.value 产生歧义，需确认框架实际解析方式"
+  - "使用 :last-child 伪选择器定位最后一条消息，若消息 DOM 结构存在嵌套容器（如气泡外层包裹元素），该选择器可能命中错误节点"
+  - "模型回复耗时不确定，已通过 timeout_ms 显式设置 wait_for 与断言等待上限"
+  - "'小U同学'为模型动态生成内容，若模型版本升级或 prompt 调整，该断言容易失效，建议考虑更宽泛的匹配或标记为脆弱用例"
+  - "未验证发送后输入框是否清空，可作为补充断言增强用例健壮性"

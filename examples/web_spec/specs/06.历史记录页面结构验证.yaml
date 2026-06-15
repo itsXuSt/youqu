@@ -1,0 +1,44 @@
+id: "06.历史记录页面结构验证"
+title: "历史记录页面结构验证"
+module: "历史记录"
+
+steps:
+  - order: 1
+    description: "点击侧边栏聊天记录分组标题，进入历史记录页面"
+    actions:
+      - type: click
+        locator:
+          strategy: css
+          value: "#inline-group-header-conversation-list"
+
+  - order: 2
+    description: "验证历史记录页面根元素可见"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".history-conversation"
+
+  - order: 3
+    description: "验证历史记录页面标题存在"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".history-conversation__title"
+
+  - order: 4
+    description: "验证历史记录页面操作区存在（搜索、筛选）"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".history-conversation__actions"
+
+  - order: 5
+    description: "验证返回按钮存在（历史记录页面有 back button）"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".title-bar__back-button"

@@ -1,0 +1,11 @@
+base_url: http://localhost:5173
+entry_route: /
+headless: false
+viewport:
+  width: 1280
+  height: 720
+browser: chromium
+assertion_timeout_ms: 300000
+retry_interval_ms: 500
+screenshot_on_step: true
+report_dir: report/web_spec

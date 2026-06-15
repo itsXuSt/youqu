@@ -1,0 +1,52 @@
+id: "04.聊天页面结构验证"
+title: "聊天页面结构验证"
+module: "聊天区"
+
+steps:
+  - order: 1
+    description: "验证聊天视图根元素可见"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".chat-view"
+
+  - order: 2
+    description: "验证欢迎视图可见（无消息时）"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".chat-view__welcome"
+
+  - order: 3
+    description: "验证输入区可见"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".input-area"
+
+  - order: 4
+    description: "验证输入框可见"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".input-area__field"
+
+  - order: 5
+    description: "验证操作栏可见"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".input-area__actions"
+
+  - order: 6
+    description: "验证发送按钮存在"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".input-area__send-button"

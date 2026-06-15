@@ -1,0 +1,76 @@
+id: "09.深度思考开关测试"
+title: "深度思考开关测试"
+module: "聊天区"
+
+steps:
+  - order: 1
+    description: "验证深度思考按钮默认开启"
+    assertions:
+      - type: visible
+        locator:
+          strategy: css
+          value: ".icon-text-button-checked:has(.icon-deep-think)"
+
+  - order: 2
+    description: "开启深度思考时发送消息并验证回复包含思考过程"
+    actions:
+      - type: input_text
+        locator:
+          strategy: bem_css
+          value: ".input-area__field"
+        value: "你好"
+      - type: press_key
+        key: "Enter"
+    assertions:
+      - type: visible
+        timeout_ms: 300000
+        locator:
+          strategy: css
+          value: ".message-navigator__item:last-child .reasoning-block"
+
+  - order: 3
+    description: "关闭深度思考并验证按钮状态"
+    actions:
+      - type: click
+        locator:
+          strategy: css
+          value: ".icon-text-button:has(.icon-deep-think)"
+    assertions:
+      - type: visible
+        timeout_ms: 5000
+        locator:
+          strategy: css
+          value: ".icon-text-button:has(.icon-deep-think)"
+      - type: not_visible
+        timeout_ms: 5000
+        locator:
+          strategy: css
+          value: ".icon-text-button-checked:has(.icon-deep-think)"
+
+  - order: 4
+    description: "关闭深度思考后发送消息并验证回复不包含思考过程"
+    actions:
+      - type: input_text
+        locator:
+          strategy: bem_css
+          value: ".input-area__field"
+        value: "世界"
+      - type: press_key
+        key: "Enter"
+    assertions:
+      - type: visible
+        timeout_ms: 300000
+        locator:
+          strategy: css
+          value: ".message-navigator__item:last-child .message-action-buttons--visible"
+      - type: not_visible
+        timeout_ms: 5000
+        locator:
+          strategy: css
+          value: ".message-navigator__item:last-child .reasoning-block"
+
+quality_notes:
+  - "点击外层 .icon-text-button:has(.icon-deep-think) 而非图标本身，确保 toggle 事件正确触发"
+  - "使用 .icon-text-button-checked:has(.icon-deep-think) 校验深度思考按钮父组件选中态"
+  - "reasoning-block 为模型回复中的思考过程标识，正向断言设置 300000ms 以覆盖慢回复场景"
+  - "使用 .message-navigator__item:last-child 精确定位最新回复，避免旧消息 reasoning-block 干扰断言"

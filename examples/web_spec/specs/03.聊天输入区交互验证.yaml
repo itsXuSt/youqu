@@ -1,0 +1,56 @@
+id: "03.聊天输入区交互验证"
+title: "聊天输入区交互验证"
+module: "聊天区"
+
+steps:
+  - order: 1
+    description: "验证输入区存在"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".input-area__field"
+
+  - order: 2
+    description: "在输入区输入文本"
+    actions:
+      - type: input_text
+        locator:
+          strategy: bem_css
+          value: ".input-area__field"
+        value: "你好"
+
+  - order: 3
+    description: "验证输入区包含刚输入的文本"
+    assertions:
+      - type: text_contains
+        locator:
+          strategy: bem_css
+          value: ".input-area__field"
+        expected: "你好"
+
+  - order: 4
+    description: "按 Ctrl+Enter 换行"
+    actions:
+      - type: press_key
+        key: "Control+Enter"
+
+  - order: 5
+    description: "输入第二行文本"
+    actions:
+      - type: input_text
+        locator:
+          strategy: bem_css
+          value: ".input-area__field"
+        value: "世界"
+
+  - order: 6
+    description: "验证输入区包含两行文本"
+    assertions:
+      - type: text_contains
+        locator:
+          strategy: bem_css
+          value: ".input-area__field"
+        expected:
+          - "你好"
+          - "世界"
