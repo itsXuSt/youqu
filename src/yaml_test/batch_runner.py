@@ -41,6 +41,18 @@ def _parse_pytest_output(output: str) -> dict:
     return {"passed": passed, "failed": failed, "skipped": skipped}
 
 
+def _extract_error_snippet(stderr: str, max_len: int = 500) -> str:
+    lines = [l.strip() for l in stderr.strip().splitlines() if l.strip()]
+    error_lines = []
+    for line in lines:
+        if line.startswith(("E ", "ERROR", "FAILED", "assert ", "YamlTestError")):
+            error_lines.append(line)
+    if not error_lines:
+        error_lines = lines[-3:] if len(lines) > 3 else lines
+    snippet = "; ".join(error_lines[:5])
+    return snippet[:max_len]
+
+
 def _merge_allure_dirs(report_root: Path) -> Path:
     target = report_root / "allure_raw"
     target.mkdir(parents=True, exist_ok=True)
@@ -126,6 +138,7 @@ def run_batches(
         batch_failed = 0
         batch_timeout = 0
         batch_skipped = 0
+        batch_failures: list[dict] = []
 
         for test_id in batch:
             if file_map:
@@ -151,8 +164,10 @@ def run_batches(
                 "failed": 0,
                 "timeout": 0,
                 "skipped": 0,
+                "error": "",
             }
 
+            stderr = ""
             try:
                 proc = subprocess.Popen(
                     cmd,
@@ -193,7 +208,26 @@ def run_batches(
                     batch_timeout += 1
             except (OSError, ValueError):
                 case_result["failed"] = 1
+                case_result["error"] = "Process execution error"
                 batch_failed += 1
+
+            if case_result["failed"] > 0 and stderr and stderr.strip():
+                case_result["error"] = _extract_error_snippet(stderr)
+
+            if case_result["timeout"] > 0:
+                case_result["error"] = f"Timeout after {case_timeout}s"
+
+            if case_result["error"]:
+                print(
+                    f"[youqu] {test_id}: {case_result['error']}",
+                    file=sys.stderr, flush=True,
+                )
+
+            if case_result["failed"] > 0 or case_result["timeout"] > 0:
+                batch_failures.append({
+                    "test_id": test_id,
+                    "error": case_result["error"],
+                })
 
             cases_done += 1
             if cases_done % 10 == 0:
@@ -214,11 +248,16 @@ def run_batches(
             "timeout": batch_timeout,
             "skipped": batch_skipped,
             "cases": list(batch),
+            "failures": batch_failures,
         }
         results.append(batch_result)
 
         if per_batch_callback:
             per_batch_callback(batch_result)
+
+    all_failures = []
+    for b in results:
+        all_failures.extend(b.get("failures", []))
 
     return {
         "status": "completed",
@@ -230,4 +269,5 @@ def run_batches(
         "completed_batches": len(batches),
         "total_batches": len(batches),
         "batches": results,
+        "failures": all_failures,
     }

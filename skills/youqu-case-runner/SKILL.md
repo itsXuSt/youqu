@@ -301,19 +301,31 @@ youqu run -a apps/autotest_deepin_music --multica-report --issue-id MUL-789 --ta
 
 The `--multica-report` command handles internally:
 - Test case discovery via `YamlIndex.query()`
+- **Skip pre-filtering**: cases with YAML `skip` field are excluded from
+  execution; skip reason posted as a separate comment before run starts
 - Per-case subprocess execution with configurable timeout
-- Batch progress comments posted to the multica issue automatically
+- Batch progress comments with **failure detail table** (test ID + error
+  snippet) posted to the multica issue automatically per batch
+- **Test summary comment** with aggregate counts (Total/Passed/Failed/
+  Timeout/Skipped/Pass Rate/Duration) posted upon completion
+- Summary line printed to stdout for CLI consumers
 - Allure report data merge into unified directory
 - File locking (`fcntl.flock`) to prevent concurrent execution
 - Heartbeat output to prevent daemon watchdog timeout
+- **HTTP report prompt** after completion: interactive terminal asks
+  y/n to start `youqu report --clean --serve`; non-interactive prints
+  the command for manual execution
 
 ### Multica vs General Mode
 
 | Feature | General Mode | Multica Mode |
 |---------|-------------|--------------|
 | Filtering | `-k`, `-m`, tags all allowed | Only `--module` and `--tag` |
+| Skip pre-filtering | No (pytest handles skip) | Yes (YAML `skip` field excluded from run) |
 | Failure diagnosis | Yes (screenshot, AT-SPI tree) | No (forbidden) |
 | Progress reporting | Manual (agent reports) | Automatic (CLI posts comments) |
+| Failure detail table | No | Yes (per-batch in comment) |
+| Summary comment | No | Yes (aggregate counts on completion) |
 | Execution | MCP async or bash | CLI subprocess only |
 | Retry on failure | Optional | Forbidden |
 

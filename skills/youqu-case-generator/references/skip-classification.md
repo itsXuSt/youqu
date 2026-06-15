@@ -1,5 +1,31 @@
 # Skip Classification Rules
 
+## YAML Test Cases
+
+For YAML test cases, use the top-level `skip` field instead of `@pytest.mark.skip`.
+The skip value is the same standardized reason string:
+
+```yaml
+name: "手势缩放图片"
+app: "app"
+skip: "skip-触摸操作无法自动化"
+setup:
+  - action: session_start
+    command: "app"
+steps:
+  - name: "双指缩放"
+    action: mouse_drag
+    ref: image_center
+teardown:
+  - action: session_stop
+```
+
+The framework pre-filters YAML cases with `skip` set — they are never sent to
+pytest. The multica report lists them in a dedicated "⏭️ Skipped Cases" section
+with reasons, and they are excluded from pass rate calculations.
+
+## Python Test Cases (Legacy)
+
 Every source case must produce a Python file. Non-automatable cases get
 `@pytest.mark.skip(reason="...")`, never omitted.
 
@@ -133,5 +159,8 @@ When multiple categories match, use the highest priority skip reason:
 
 ## Note
 
-The `youqu make` skeleton does not include a CSV label file. All skip
-management uses `@pytest.mark.skip(reason="...")` directly in test files.
+**YAML cases** (preferred): use the top-level `skip` field with the reason string.
+The `youqu make` skeleton does not include a CSV label file — skip management uses
+the `skip` field directly in YAML.
+
+**Python cases** (legacy): use `@pytest.mark.skip(reason="...")` in test files.

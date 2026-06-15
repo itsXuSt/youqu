@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2026 UnionTech Software Technology Co., Ltd.
+# SPDX-FileCopyrightText: 2026 Uniontech Software Technology Co., Ltd.
 #
 # SPDX-License-Identifier: GPL-2.0-only
 """Unit tests for cli.multica_report."""
@@ -13,16 +13,15 @@ from cli.multica_report import (
     _format_batch_comment,
     _format_cancel_comment,
     _format_duration,
-    _format_finish_comment,
+    _format_skip_comment,
     _format_start_comment,
+    _format_summary_comment,
     _post_multica_comment,
     run_multica,
 )
 
 
 class TestCheckMulticaCli:
-    """Tests for _check_multica_cli()."""
-
     @patch("cli.multica_report.Path")
     @patch("cli.multica_report.shutil.which")
     def test_cli_missing(self, mock_which, mock_path_cls):
@@ -49,8 +48,6 @@ class TestCheckMulticaCli:
 
 
 class TestFormatDuration:
-    """Tests for _format_duration()."""
-
     def test_seconds(self):
         assert _format_duration(45) == "45s"
 
@@ -68,8 +65,6 @@ class TestFormatDuration:
 
 
 class TestFormatStartComment:
-    """Tests for _format_start_comment()."""
-
     def test_full_params(self):
         result = _format_start_comment("deepin-music", "播放", "L1", 205, 11, 20)
         assert "🚀 **YouQu Test Started**" in result
@@ -78,6 +73,11 @@ class TestFormatStartComment:
         assert "205" in result
         assert "11 (batch size: 20)" in result
         assert "Started:" in result
+
+    def test_with_skipped_count(self):
+        result = _format_start_comment("app", "", "", 20, 1, 20, skipped_count=5)
+        assert "Runnable: 15" in result
+        assert "Skipped: 5" in result
 
     def test_no_module_no_tag(self):
         result = _format_start_comment("music", "", "", 10, 1, 10)
@@ -95,9 +95,29 @@ class TestFormatStartComment:
         assert "Tags:" in result
 
 
-class TestFormatBatchComment:
-    """Tests for _format_batch_comment()."""
+class TestFormatSkipComment:
+    def test_basic(self):
+        cases = [
+            {"id": "test_001", "skip": "skip-触摸操作无法自动化"},
+            {"id": "test_002", "skip": "skip-依赖特定硬件环境"},
+        ]
+        result = _format_skip_comment(cases)
+        assert "⏭️ **Skipped Cases**" in result
+        assert "`test_001`" in result
+        assert "skip-触摸操作无法自动化" in result
+        assert "`test_002`" in result
 
+    def test_empty_list(self):
+        result = _format_skip_comment([])
+        assert "⏭️ **Skipped Cases**" in result
+
+    def test_unknown_reason(self):
+        cases = [{"id": "test_003", "skip": None}]
+        result = _format_skip_comment(cases)
+        assert "unknown" in result
+
+
+class TestFormatBatchComment:
     def test_normal(self):
         result = _format_batch_comment(
             5, 11, "test_play_081..test_play_100", 17, 2, 1, 0, 192
@@ -119,39 +139,34 @@ class TestFormatBatchComment:
         result = _format_batch_comment(1, 1, "t1..t3", 0, 3, 0, 0, 10)
         assert "0.0%" in result
 
+    def test_with_failures_table(self):
+        failures = [
+            {"test_id": "test_001", "error": "assert element not found"},
+            {"test_id": "test_002", "error": "TimeoutError: element not visible"},
+        ]
+        result = _format_batch_comment(1, 1, "t1..t3", 1, 2, 0, 0, 30, failures=failures)
+        assert "| Test ID | Error |" in result
+        assert "`test_001`" in result
+        assert "assert element not found" in result
+        assert "`test_002`" in result
 
-class TestFormatFinishComment:
-    """Tests for _format_finish_comment()."""
+    def test_no_failures_no_table(self):
+        result = _format_batch_comment(1, 1, "t1..t5", 5, 0, 0, 0, 10, failures=None)
+        assert "| Test ID" not in result
 
-    def test_all_passed(self):
-        result = _format_finish_comment(
-            205, 185, 17, 3, 2, 1695, "autotest/report/allure_html/"
-        )
-        assert "⚠️" in result
-        assert "(partial)" in result
-        assert "28m 15s" in result
+    def test_failure_error_truncation(self):
+        failures = [{"test_id": "test_001", "error": "x" * 300}]
+        result = _format_batch_comment(1, 1, "t1", 0, 1, 0, 0, 10, failures=failures)
+        assert len(result) < 500
 
-    def test_all_passed_no_partial(self):
-        result = _format_finish_comment(10, 10, 0, 0, 0, 60, "report/")
-        assert "✅" in result
-        assert "(partial)" not in result
-        assert "100.0%" in result
-        assert "1m 0s" in result
-
-    def test_with_timeout(self):
-        result = _format_finish_comment(5, 3, 0, 2, 0, 30, "report/")
-        assert "⚠️" in result
-        assert "(partial)" in result
-
-    def test_zero_effective_shows_na(self):
-        result = _format_finish_comment(0, 0, 0, 0, 0, 0, "report/")
-        assert "N/A" in result
-        assert "✅" in result
+    def test_failure_pipe_escaped(self):
+        failures = [{"test_id": "test_001", "error": "error | with pipe"}]
+        result = _format_batch_comment(1, 1, "t1", 0, 1, 0, 0, 10, failures=failures)
+        assert "\\|" in result
+        assert "| test_001 | error | with pipe |" not in result
 
 
 class TestFormatCancelComment:
-    """Tests for _format_cancel_comment()."""
-
     def test_cancel_partial(self):
         result = _format_cancel_comment(5, 11)
         assert "⏹️" in result
@@ -166,9 +181,48 @@ class TestFormatCancelComment:
         assert "3/3" in result
 
 
-class TestPostMulticaComment:
-    """Tests for _post_multica_comment()."""
+class TestFormatSummaryComment:
+    def test_has_failures(self):
+        result = _format_summary_comment(
+            total=290, passed=144, failed=121, timeout=25, skipped=0,
+            duration=6700, completed_batches=15, total_batches=15,
+        )
+        assert "📋" in result
+        assert "❌" in result
+        assert "Total: 290" in result
+        assert "Passed: 144" in result
+        assert "Failed: 121" in result
+        assert "Timeout: 25" in result
+        assert "49.7%" in result
+        assert "15/15" in result
+        assert "youqu report --clean --serve" in result
 
+    def test_all_passed(self):
+        result = _format_summary_comment(
+            total=10, passed=10, failed=0, timeout=0, skipped=0,
+            duration=300, completed_batches=1, total_batches=1,
+        )
+        assert "✅" in result
+        assert "100.0%" in result
+        assert "youqu report --clean --serve" in result
+
+    def test_with_skipped(self):
+        result = _format_summary_comment(
+            total=20, passed=15, failed=3, timeout=0, skipped=2,
+            duration=600, completed_batches=1, total_batches=1,
+        )
+        assert "Skipped: 2" in result
+        assert "83.3%" in result  # passed/(total-skipped) = 15/18 = 83.3%
+
+    def test_zero_runnable(self):
+        result = _format_summary_comment(
+            total=5, passed=0, failed=0, timeout=0, skipped=5,
+            duration=0, completed_batches=0, total_batches=0,
+        )
+        assert "N/A" in result
+
+
+class TestPostMulticaComment:
     @patch("cli.multica_report.subprocess.run")
     def test_success(self, mock_run):
         mock_run.return_value = MagicMock(returncode=0)
@@ -194,8 +248,6 @@ class TestPostMulticaComment:
 
 
 class TestRunMulticaOrchestrator:
-    """Tests for run_multica() orchestration flow."""
-
     @patch("cli.multica_report._post_multica_comment")
     @patch("src.yaml_test.index.YamlIndex")
     @patch("cli.multica_report._find_autotest_dir")
@@ -264,8 +316,9 @@ class TestRunMulticaOrchestrator:
             "total_batches": 1,
             "batches": [
                 {"batch": 1, "passed": 2, "failed": 0, "timeout": 0,
-                 "skipped": 0, "cases": ["test_001", "test_002"]}
+                 "skipped": 0, "cases": ["test_001", "test_002"], "failures": []}
             ],
+            "failures": [],
         }
 
         result = run_multica(str(tmp_path), "MUL-1", 20, 90, "", "")
@@ -306,8 +359,10 @@ class TestRunMulticaOrchestrator:
             "total_batches": 1,
             "batches": [
                 {"batch": 1, "passed": 0, "failed": 1, "timeout": 0,
-                 "skipped": 0, "cases": ["test_001"]}
+                 "skipped": 0, "cases": ["test_001"],
+                 "failures": [{"test_id": "test_001", "error": "assert failed"}]}
             ],
+            "failures": [{"test_id": "test_001", "error": "assert failed"}],
         }
 
         result = run_multica(str(tmp_path), "MUL-1", 20, 90, "", "")
@@ -345,8 +400,10 @@ class TestRunMulticaOrchestrator:
             "total_batches": 1,
             "batches": [
                 {"batch": 1, "passed": 0, "failed": 0, "timeout": 1,
-                 "skipped": 0, "cases": ["test_001"]}
+                 "skipped": 0, "cases": ["test_001"],
+                 "failures": [{"test_id": "test_001", "error": "Timeout after 90s"}]}
             ],
+            "failures": [{"test_id": "test_001", "error": "Timeout after 90s"}],
         }
 
         result = run_multica(str(tmp_path), "MUL-1", 20, 90, "", "")
@@ -398,6 +455,7 @@ class TestRunMulticaOrchestrator:
             "completed_batches": 0,
             "total_batches": 1,
             "batches": [],
+            "failures": [],
         }
 
         result = run_multica(str(tmp_path), "MUL-1", 20, 90, "", "")
@@ -437,11 +495,86 @@ class TestRunMulticaOrchestrator:
             "total_batches": 1,
             "batches": [
                 {"batch": 1, "passed": 1, "failed": 0, "timeout": 0,
-                 "skipped": 0, "cases": ["test_001"]}
+                 "skipped": 0, "cases": ["test_001"], "failures": []}
             ],
+            "failures": [],
         }
 
         result = run_multica(str(tmp_path), "MUL-1", 20, 90, "", "")
         assert result == 0
         mock_post.assert_not_called()
         mock_merge.assert_called_once()
+
+    @patch("cli.multica_report._post_multica_comment")
+    @patch("src.yaml_test.index.YamlIndex")
+    @patch("cli.multica_report._find_autotest_dir")
+    @patch("cli.multica_report._check_multica_cli")
+    def test_all_skipped_exit_0(
+        self, mock_check, mock_find, mock_index_cls, mock_post, tmp_path
+    ):
+        mock_check.return_value = True
+        mock_find.return_value = tmp_path
+        (tmp_path / "yaml").mkdir()
+
+        mock_index = MagicMock()
+        mock_index.query.return_value = [
+            {"id": "test_001", "file": "test_001.yaml", "skip": "skip-触摸操作无法自动化"},
+            {"id": "test_002", "file": "test_002.yaml", "skip": "skip-性能压测类不支持自动化"},
+        ]
+        mock_index_cls.return_value = mock_index
+
+        result = run_multica(str(tmp_path), "MUL-1", 20, 90, "", "")
+        assert result == 0
+        skip_comment = mock_post.call_args_list[0][0][1]
+        assert "Skipped Cases" in skip_comment
+
+    @patch("cli.multica_report._merge_allure_dirs")
+    @patch("cli.multica_report._post_multica_comment")
+    @patch("cli.multica_report.install_sigterm_handler")
+    @patch("cli.multica_report.run_batches")
+    @patch("src.yaml_test.index.YamlIndex")
+    @patch("cli.multica_report._find_autotest_dir")
+    @patch("cli.multica_report._check_multica_cli")
+    def test_partial_skip_posts_skip_comment_before_run(
+        self, mock_check, mock_find, mock_index_cls,
+        mock_run_batches, mock_install, mock_post, mock_merge, tmp_path,
+    ):
+        mock_check.return_value = True
+        mock_find.return_value = tmp_path
+        (tmp_path / "yaml").mkdir()
+
+        mock_index = MagicMock()
+        mock_index.query.return_value = [
+            {"id": "test_001", "file": "test_001.yaml"},
+            {"id": "test_002", "file": "test_002.yaml", "skip": "skip-依赖特定硬件环境"},
+        ]
+        mock_index_cls.return_value = mock_index
+
+        mock_run_batches.return_value = {
+            "status": "completed",
+            "passed": 1,
+            "failed": 0,
+            "timeout": 0,
+            "skipped": 0,
+            "total": 1,
+            "completed_batches": 1,
+            "total_batches": 1,
+            "batches": [
+                {"batch": 1, "passed": 1, "failed": 0, "timeout": 0,
+                 "skipped": 0, "cases": ["test_001"], "failures": []}
+            ],
+            "failures": [],
+        }
+
+        result = run_multica(str(tmp_path), "MUL-1", 20, 90, "", "")
+        assert result == 0
+        posted_contents = [c[0][1] for c in mock_post.call_args_list]
+        skip_comments = [c for c in posted_contents if "Skipped Cases" in c]
+        assert len(skip_comments) == 1
+        assert "test_002" in skip_comments[0]
+        assert "skip-依赖特定硬件环境" in skip_comments[0]
+
+        run_batches_call = mock_run_batches.call_args
+        passed_ids = run_batches_call[1]["test_ids"]
+        assert "test_002" not in passed_ids
+        assert "test_001" in passed_ids

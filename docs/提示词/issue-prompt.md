@@ -15,10 +15,7 @@
 
 | 配置项 | 值 |
 |--------|-----|
-| 项目路径 | `{PROJECT_ROOT}/autotest/` |
-| 应用二进制 | `{APP_BINARY}` |
-| 进程名 | `{APP_NAME}` |
-| 执行 Agent | `youqu-executor` |
+| 项目路径 | `{PROJECT_ROOT}/` |
 
 ## 职责
 

@@ -105,6 +105,7 @@ elements:
 name: "测试用例标题"
 app: "app-name"
 screenshot: false       # enable automatic screenshots after each step
+skip: "skip-触摸操作无法自动化"  # optional: skip this case with reason string
 vars:
   KEY: "value"
 
@@ -364,21 +365,35 @@ behavior and MenuNavigator internals.
    - `step.wait`: Blind sleep after action → covers unknown UI transitions
    - Use both when needed: `wait_for` for the target, `wait` as safety margin
 
-## Non-Automatable Cases
+## Non-Automatable Cases (skip field)
 
-Non-automatable cases are documented with a comment header. The YAML body
-is a minimal stub:
+Non-automatable cases use the top-level `skip` field with a reason string.
+The case body retains its original setup/steps/teardown for reference,
+but the framework pre-filters it before execution — it is never sent to pytest.
 
 ```yaml
-# NON-AUTOMATABLE: 触摸操作无法自动化
 name: "手势缩放测试"
 app: "app"
-setup: []
-steps: []
-teardown: []
+skip: "skip-触摸操作无法自动化"
+setup:
+  - action: session_start
+    command: "app"
+steps:
+  - name: "双指缩放图片"
+    action: mouse_drag
+    ref: image_center
+teardown:
+  - action: session_stop
 ```
 
-This preserves the case in version control without generating false test results.
+The `skip` value follows the standardized reason format from `skip-classification.md`
+(e.g. `skip-触摸操作无法自动化`, `skip-依赖特定硬件环境`).
+
+**Benefits over empty-stub approach:**
+- Original test steps preserved in YAML for human review
+- Framework pre-filters before pytest — zero execution time wasted
+- multica report lists skipped cases with reasons in a dedicated section
+- Pass rate calculated on runnable cases only
 
 ## File Naming
 

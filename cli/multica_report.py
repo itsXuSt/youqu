@@ -1,4 +1,4 @@
-# SPDX-FileCopyrightText: 2026 UnionTech Software Technology Co., Ltd.
+# SPDX-FileCopyrightText: 2026 Uniontech Software Technology Co., Ltd.
 #
 # SPDX-License-Identifier: GPL-2.0-only
 """Multica integration: progress comments, Allure merge, and batch orchestration."""
@@ -62,8 +62,10 @@ def _format_start_comment(
     total: int,
     batches: int,
     batch_size: int,
+    skipped_count: int = 0,
 ) -> str:
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    runnable = total - skipped_count
     lines = [
         "🚀 **YouQu Test Started**",
         f"- App: `{app}`",
@@ -72,10 +74,17 @@ def _format_start_comment(
         lines.append(f"- Module: `{module}`")
     if tag:
         lines.append(f"- Tags: `{tag}`")
-    lines.extend([
-        f"- Cases: {total} | Batches: {batches} (batch size: {batch_size})",
-        f"- Started: {now}",
-    ])
+    lines.append(f"- Runnable: {runnable} | Skipped: {skipped_count} | Total: {total}")
+    lines.append(f"- Batches: {batches} (batch size: {batch_size})")
+    lines.append(f"- Started: {now}")
+    return "\n".join(lines)
+
+
+def _format_skip_comment(skipped_cases: list[dict]) -> str:
+    lines = ["⏭️ **Skipped Cases**"]
+    for case in skipped_cases:
+        reason = case.get("skip") or "unknown"
+        lines.append(f"- `{case['id']}`: {reason}")
     return "\n".join(lines)
 
 
@@ -88,6 +97,7 @@ def _format_batch_comment(
     timeout: int,
     skipped: int,
     duration: float,
+    failures: list[dict] | None = None,
 ) -> str:
     total = passed + failed + timeout + skipped
     rate = f"{passed / total * 100:.1f}%" if total > 0 else "N/A"
@@ -98,35 +108,45 @@ def _format_batch_comment(
         f"- Pass Rate: {rate}",
         f"- Time: {_format_duration(duration)}",
     ]
+    if failures:
+        lines.append("")
+        lines.append("| Test ID | Error |")
+        lines.append("|---------|-------|")
+        for f in failures:
+            error = f.get("error", "").replace("|", "\\|").replace("\n", " ")[:200]
+            lines.append(f"| `{f['test_id']}` | {error} |")
     return "\n".join(lines)
 
 
-def _format_finish_comment(
+def _format_cancel_comment(completed_batches: int, total_batches: int) -> str:
+    return f"⏹️ Cancelled by user. Completed {completed_batches}/{total_batches} batches."
+
+
+def _format_summary_comment(
     total: int,
     passed: int,
     failed: int,
     timeout: int,
     skipped: int,
     duration: float,
-    allure_path: str,
+    completed_batches: int,
+    total_batches: int,
 ) -> str:
-    effective = passed + failed + timeout + skipped
-    rate = f"{passed / effective * 100:.1f}%" if effective > 0 else "N/A"
-    partial = " (partial)" if (failed + timeout) > 0 else ""
-    icon = "✅" if (failed + timeout) == 0 else "⚠️"
+    runnable = total - skipped
+    rate = f"{passed / runnable * 100:.1f}%" if runnable > 0 else "N/A"
+    if failed + timeout == 0:
+        status = "✅ All passed"
+    else:
+        status = "❌ Has failures"
     lines = [
-        f"{icon} **YouQu Test Complete{partial}**",
-        f"- Total: {total} | Passed: {passed} | Failed: {failed} "
-        f"| Timeout: {timeout} | Skipped: {skipped}",
+        f"📋 **Test Summary** — {status}",
+        f"- Total: {total} | Passed: {passed} | Failed: {failed} | Timeout: {timeout} | Skipped: {skipped}",
         f"- Pass Rate: {rate}",
         f"- Duration: {_format_duration(duration)}",
-        f"- Allure: `{allure_path}` (local path)",
+        f"- Batches: {completed_batches}/{total_batches}",
     ]
+    lines.append("- 💡 View detailed report: `youqu report --clean --serve`")
     return "\n".join(lines)
-
-
-def _format_cancel_comment(completed_batches: int, total_batches: int) -> str:
-    return f"⏹️ Cancelled by user. Completed {completed_batches}/{total_batches} batches."
 
 
 def run_multica(
@@ -137,10 +157,6 @@ def run_multica(
     module: str,
     tag: str,
 ) -> int:
-    """Orchestrate batch test execution with multica progress comments.
-
-    Returns 0 if all tests passed, 1 otherwise.
-    """
     from src.yaml_test.index import YamlIndex
 
     start_time = time.time()
@@ -165,8 +181,20 @@ def run_multica(
             _post_multica_comment(issue_id, msg)
         return 0
 
-    test_ids = [t["id"] for t in tests]
-    file_map = {t["id"]: t["file"] for t in tests}
+    skipped_cases = [t for t in tests if t.get("skip")]
+    runnable_tests = [t for t in tests if not t.get("skip")]
+
+    if not runnable_tests:
+        msg = f"All {len(tests)} cases are skipped. Nothing to run."
+        print(msg, flush=True)
+        if multica_available:
+            if skipped_cases:
+                _post_multica_comment(issue_id, _format_skip_comment(skipped_cases))
+            _post_multica_comment(issue_id, msg)
+        return 0
+
+    test_ids = [t["id"] for t in runnable_tests]
+    file_map = {t["id"]: t["file"] for t in runnable_tests}
 
     total_batches = (len(test_ids) + batch_size - 1) // batch_size
     app_name = autotest.name
@@ -176,11 +204,15 @@ def run_multica(
             app=app_name,
             module=module,
             tag=tag,
-            total=len(test_ids),
+            total=len(tests),
             batches=total_batches,
             batch_size=batch_size,
+            skipped_count=len(skipped_cases),
         )
         _post_multica_comment(issue_id, start_comment)
+
+        if skipped_cases:
+            _post_multica_comment(issue_id, _format_skip_comment(skipped_cases))
 
     install_sigterm_handler()
 
@@ -204,6 +236,7 @@ def run_multica(
             timeout=batch_result["timeout"],
             skipped=batch_result["skipped"],
             duration=batch_duration,
+            failures=batch_result.get("failures"),
         )
         _post_multica_comment(issue_id, comment)
 
@@ -218,29 +251,38 @@ def run_multica(
         file_map=file_map,
     )
 
-    duration = time.time() - start_time
-
     report_root = autotest / "report"
     _merge_allure_dirs(report_root)
-    allure_path = str(report_root / "allure_raw")
 
-    if multica_available:
-        if result["status"] == "cancelled":
-            comment = _format_cancel_comment(
-                completed_batches=result["completed_batches"],
-                total_batches=result["total_batches"],
-            )
-        else:
-            comment = _format_finish_comment(
-                total=result["total"],
-                passed=result["passed"],
-                failed=result["failed"],
-                timeout=result["timeout"],
-                skipped=result["skipped"],
-                duration=duration,
-                allure_path=allure_path,
-            )
+    elapsed = time.time() - start_time
+    total_skipped = len(skipped_cases) + result.get("skipped", 0)
+
+    if multica_available and result["status"] == "cancelled":
+        comment = _format_cancel_comment(
+            completed_batches=result["completed_batches"],
+            total_batches=result["total_batches"],
+        )
         _post_multica_comment(issue_id, comment)
+
+    if multica_available and result["status"] != "cancelled":
+        summary = _format_summary_comment(
+            total=len(tests),
+            passed=result["passed"],
+            failed=result["failed"],
+            timeout=result["timeout"],
+            skipped=total_skipped,
+            duration=elapsed,
+            completed_batches=result["completed_batches"],
+            total_batches=result["total_batches"],
+        )
+        _post_multica_comment(issue_id, summary)
+
+    print(
+        f"Summary: Total={len(tests)} | Passed={result['passed']} | "
+        f"Failed={result['failed']} | Timeout={result['timeout']} | "
+        f"Skipped={total_skipped} | Duration={_format_duration(elapsed)}",
+        flush=True,
+    )
 
     if result["status"] == "cancelled":
         return 1

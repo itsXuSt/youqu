@@ -105,6 +105,7 @@ class TestCase(BaseModel):
     module: str = ""       # Module classification like "播放", "设置"
     feature: str = ""      # Feature sub-classification like "本地文件", "在线流"
     tags: list[str] = Field(default_factory=list)  # Tags like ["L1", "smoke"]
+    skip: Optional[str] = None  # Skip reason; None = run normally, string = skip with reason
     screenshot: bool = False
     vars: dict[str, Any] = Field(default_factory=dict)
     setup: list[ActionStep] = Field(default_factory=list)

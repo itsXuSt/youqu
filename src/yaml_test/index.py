@@ -31,12 +31,24 @@ class YamlIndex:
     def load(self) -> list[dict]:
         """Load the index.yaml file.
 
-        Auto-rebuilds if the index doesn't exist or is stale.
+        Auto-rebuilds if the index doesn't exist or is stale (any test_*.yaml
+        file is newer than the index).
 
         Returns:
             List of test case metadata dicts.
         """
         if not self.index_file.exists():
+            return self.rebuild()
+        # Stale cache: rebuild if any test file is newer than index.yaml
+        try:
+            index_mtime = self.index_file.stat().st_mtime
+            for yaml_file in self.yaml_dir.rglob("test_*.yaml"):
+                try:
+                    if yaml_file.stat().st_mtime > index_mtime:
+                        return self.rebuild()
+                except OSError:
+                    continue
+        except OSError:
             return self.rebuild()
         raw = yaml.safe_load(self.index_file.read_text(encoding="utf-8")) or {}
         return raw.get("tests", [])
@@ -68,6 +80,7 @@ class YamlIndex:
                     "feature": raw.get("feature", ""),
                     "tags": raw.get("tags", []),
                     "app": raw.get("app", ""),
+                    "skip": raw.get("skip"),
                 }
                 tests.append(test_meta)
             except yaml.YAMLError:
