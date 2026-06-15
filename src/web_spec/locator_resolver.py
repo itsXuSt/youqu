@@ -59,6 +59,21 @@ def resolve(page: Any, spec: LocatorSpec, require_unique: bool = False) -> Resol
     )
 
 
+def resolve_all(page: Any, spec: LocatorSpec) -> ResolvedLocator:
+    """Resolve a locator as a collection for multi-element assertions."""
+    locator = _build_locator(page, spec)
+    count = locator.count()
+    if count == 0:
+        raise LocatorError(f"{spec.strategy.value}='{spec.value}' 匹配 0 个元素")
+    return ResolvedLocator(
+        locator=locator,
+        strategy=spec.strategy.value,
+        value=spec.value,
+        match_count=count,
+        stability=_stability(spec),
+    )
+
+
 def _build_locator(page: Any, spec: LocatorSpec):
     if spec.strategy == LocatorStrategy.ROLE:
         options = {"name": spec.name} if spec.name else {}

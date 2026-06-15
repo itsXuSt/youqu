@@ -62,6 +62,14 @@ def test_load_spec_rejects_empty_file(tmp_path):
         load_spec(spec_path)
 
 
+def test_load_spec_wraps_yaml_parse_error(tmp_path):
+    spec_path = tmp_path / "bad.yaml"
+    spec_path.write_text("title: [未闭合\n", encoding="utf-8")
+
+    with pytest.raises(SpecValidationError):
+        load_spec(spec_path)
+
+
 def test_load_spec_rejects_steps_without_work(tmp_path):
     spec_path = tmp_path / "bad.yaml"
     spec_path.write_text("""
@@ -72,6 +80,71 @@ steps:
 
     with pytest.raises(SpecValidationError):
         load_spec(spec_path)
+
+
+def test_load_spec_parses_new_actions(tmp_path):
+    spec_path = tmp_path / "actions.yaml"
+    spec_path.write_text("""
+title: 常用动作
+steps:
+  - description: 右键和拖拽
+    actions:
+      - type: right_click
+        locator: {strategy: css, value: .menu-target}
+      - type: dblclick
+        locator: {strategy: css, value: .open-target}
+      - type: drag_to
+        locator: {strategy: css, value: .source}
+        target: {strategy: css, value: .target}
+      - type: upload_file
+        locator: {strategy: css, value: "input[type=file]"}
+        value: /tmp/demo.png
+""", encoding="utf-8")
+
+    spec = load_spec(spec_path)
+
+    action_types = [action.type.value for action in spec.steps[0].actions]
+    assert action_types == ["right_click", "dblclick", "drag_to", "upload_file"]
+    assert spec.steps[0].actions[2].target.value == ".target"
+
+
+def test_load_spec_parses_new_assertions(tmp_path):
+    spec_path = tmp_path / "assertions.yaml"
+    spec_path.write_text("""
+title: 常用断言
+steps:
+  - description: 属性和顺序
+    assertions:
+      - type: input_value_contains
+        locator: {strategy: css, value: input}
+        expected: YouQu
+      - type: attribute_equals
+        locator: {strategy: css, value: button}
+        attribute: aria-label
+        expected: 提交
+      - type: class_contains
+        locator: {strategy: css, value: button}
+        expected: primary
+      - type: url_contains
+        expected: /chat
+      - type: text_sequence
+        locator: {strategy: css, value: .item}
+        expected: [A, B]
+        mode: contains_order
+""", encoding="utf-8")
+
+    spec = load_spec(spec_path)
+
+    assertion_types = [assertion.type.value for assertion in spec.steps[0].assertions]
+    assert assertion_types == [
+        "input_value_contains",
+        "attribute_equals",
+        "class_contains",
+        "url_contains",
+        "text_sequence",
+    ]
+    assert spec.steps[0].assertions[1].attribute == "aria-label"
+    assert spec.steps[0].assertions[4].mode == "contains_order"
 
 
 def test_load_spec_dir_loads_recursively_and_skips_index(tmp_path):

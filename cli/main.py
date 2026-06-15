@@ -118,6 +118,9 @@ def main():
     p_web_index = web_spec_sub.add_parser("index", help="Rebuild Web spec index")
     p_web_index.add_argument("spec_dir", help="Web spec directory")
 
+    p_web_check = web_spec_sub.add_parser("check", help="Statically check Web specs")
+    p_web_check.add_argument("spec_path", help="Web spec file or directory")
+
     # youqu startproject <name>
     p_sp = sub.add_parser("startproject", help="Create project from template")
     p_sp.add_argument("name", nargs="?", help="Project name (default: youqu)")

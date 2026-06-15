@@ -5,13 +5,13 @@
 
 import pytest
 
-from web_spec.locator_resolver import LocatorError, resolve
+from web_spec.locator_resolver import LocatorError, resolve, resolve_all
 from web_spec.models import Locator
 
 
 class FakeLocator:
     def __init__(self, count):
-        self.first = self
+        self.first = object()
         self._count = count
 
     def count(self):
@@ -39,3 +39,13 @@ def test_locator_can_explicitly_take_first_match():
     resolved = resolve(FakePage(2), locator, require_unique=True)
 
     assert resolved.match_count == 2
+
+
+def test_resolve_all_keeps_collection_locator():
+    locator = Locator(strategy="css", value=".item")
+    page = FakePage(3)
+
+    resolved = resolve_all(page, locator)
+
+    assert resolved.match_count == 3
+    assert resolved.locator is not resolved.locator.first

@@ -11,6 +11,11 @@ from typing import Any
 
 import yaml
 
+from web_spec.loader import SpecValidationError, load_spec
+
+
+INDEX_VERSION = 2
+
 
 class WebSpecIndex:
     """Manage index.yaml for Web spec files."""
@@ -23,6 +28,8 @@ class WebSpecIndex:
         if not self.index_file.exists():
             return self.rebuild()
         raw = yaml.safe_load(self.index_file.read_text(encoding="utf-8")) or {}
+        if raw.get("version") != INDEX_VERSION:
+            return self.rebuild()
         return raw.get("specs", [])
 
     def rebuild(self) -> list[dict[str, Any]]:
@@ -31,25 +38,22 @@ class WebSpecIndex:
             if spec_file.name == "index.yaml":
                 continue
             try:
-                raw = yaml.safe_load(spec_file.read_text(encoding="utf-8")) or {}
-            except yaml.YAMLError:
+                spec = load_spec(spec_file)
+            except (FileNotFoundError, SpecValidationError):
                 continue
-            if not isinstance(raw, dict):
-                continue
-            spec_id = str(raw.get("id") or spec_file.stem)
             specs.append({
-                "id": spec_id,
+                "id": spec.id,
                 "file": str(spec_file.relative_to(self.spec_dir)),
-                "name": raw.get("title") or raw.get("name") or "",
-                "description": raw.get("description", ""),
-                "module": raw.get("module", ""),
-                "feature": raw.get("feature", ""),
-                "tags": raw.get("tags", []),
-                "priority": raw.get("priority", ""),
+                "name": spec.title,
+                "description": spec.description,
+                "module": spec.module,
+                "feature": spec.feature,
+                "tags": spec.tags,
+                "priority": spec.priority,
             })
 
         data = {
-            "version": 1,
+            "version": INDEX_VERSION,
             "generated_at": datetime.now().isoformat(timespec="seconds"),
             "specs": specs,
         }

@@ -196,6 +196,270 @@ $ bash env.sh
 | MCP Server | 随 `pip install youqu-framework` 自动安装 |
 | Wayland 支持 | 额外需要 `g++ cmake qt5-default libkf5wayland-dev wl-clipboard` 等编译依赖 |
 
+### Web Spec 自动化测试
+
+Web Spec 是基于 Playwright 的确定性 Web UI 测试能力，使用 YAML 描述页面入口、操作步骤和断言，不依赖 AI 推理执行。它适合把稳定的 Web 页面流程沉淀为可重复运行的自动化用例。
+
+#### 安装依赖
+
+源码开发环境可安装 Web UI 额外依赖并安装浏览器：
+
+```shell
+pip install -e ".[webui]"
+playwright install chromium
+```
+
+已安装 wheel 的环境可使用：
+
+```shell
+pip install "youqu-framework[webui]"
+playwright install chromium
+```
+
+#### 配置文件
+
+Web Spec 配置可写成扁平结构，也兼容 `target`、`engine`、`paths` 分组。示例见 `examples/web_spec/web_spec.yaml`：
+
+```yaml
+base_url: http://localhost:5173
+entry_route: /
+headless: true
+viewport:
+  width: 1280
+  height: 720
+report_dir: report/web_spec
+```
+
+常用字段：
+
+| 字段 | 含义 |
+|------|------|
+| `base_url` | 被测 Web 服务地址 |
+| `entry_route` | 默认入口路由 |
+| `headless` | 是否使用无头浏览器 |
+| `viewport` | 浏览器视口大小 |
+| `assertion_timeout_ms` | 断言默认超时时间 |
+| `retry_interval_ms` | 断言重试间隔 |
+| `screenshot_on_step` | 每个 step 后是否截图 |
+| `report_dir` | 报告输出目录 |
+
+#### Spec 文件结构
+
+一个最小 Web Spec YAML：
+
+```yaml
+id: login-smoke
+title: 登录页冒烟测试
+module: 认证
+tags: [smoke]
+entry_page: /login
+steps:
+  - description: 检查登录按钮
+    assertions:
+      - type: visible
+        locator:
+          strategy: text
+          value: 登录
+          exact: true
+```
+
+常用顶层字段：
+
+| 字段 | 含义 |
+|------|------|
+| `id` | 用例 ID；缺省时使用文件名 |
+| `title` / `name` | 用例标题；`name` 会兼容映射为 `title` |
+| `module` / `feature` / `tags` | 分类和筛选信息 |
+| `entry_page` | 相对 `base_url` 的入口路径 |
+| `entry_url` | 完整入口 URL，优先级高于 `base_url + entry_page` |
+| `setup` | 用例步骤前执行的 action 列表 |
+| `steps` | 用例主体步骤，必须非空 |
+| `teardown` | 用例结束后的清理策略和 action 列表 |
+| `execution` | 用例级执行参数覆盖 |
+
+#### Locator
+
+当前支持的 locator 策略：
+
+| strategy | Playwright 映射 | 示例 |
+|----------|-----------------|------|
+| `role` | `page.get_by_role()` | `{strategy: role, value: button, name: 登录}` |
+| `text` | `page.get_by_text()` | `{strategy: text, value: 登录, exact: true}` |
+| `test_id` | `page.get_by_test_id()` | `{strategy: test_id, value: submit}` |
+| `bem_css` | `page.locator()` | `{strategy: bem_css, value: .login-form__submit}` |
+| `css` | `page.locator()` | `{strategy: css, value: button[type=submit]}` |
+
+交互动作默认要求 locator 唯一匹配。确实需要取第一个匹配元素时，可以显式设置：
+
+```yaml
+locator:
+  strategy: text
+  value: 删除
+  exact: true
+  first: true
+```
+
+#### Action
+
+当前支持的 action：
+
+| type | 含义 | 主要字段 |
+|------|------|----------|
+| `click` | 点击元素 | `locator` |
+| `fill` | 填充 input/textarea | `locator`, `value` |
+| `input_text` | 点击聚焦后通过键盘输入文本 | `locator`, `value` |
+| `keyboard_type` | 直接键盘输入文本 | `value` |
+| `press_key` | 按键或快捷键 | `key` |
+| `hover` | 悬停元素 | `locator` |
+| `select_option` | 选择下拉选项 | `locator`, `value` |
+| `wait_for` | 等待元素可见；无 locator 时按 timeout 睡眠 | `locator`, `timeout_ms` |
+| `scroll` | 滚动到元素或按方向滚动页面 | `locator` 或 `direction` |
+| `right_click` | 右键点击元素 | `locator` |
+| `dblclick` | 双击元素 | `locator` |
+| `drag_to` | 将源元素拖拽到目标元素 | `locator`, `target` |
+| `upload_file` | 给文件输入框设置上传文件 | `locator`, `value` |
+
+Action 可通过 `settle_after` 声明操作后的稳定等待：
+
+```yaml
+- type: click
+  locator: {strategy: text, value: 提交, exact: true}
+  settle_after:
+    wait_for_text: 提交成功
+    settle_ms: 300
+```
+
+#### Assertion
+
+当前支持的 assertion：
+
+| type | 含义 |
+|------|------|
+| `visible` | 元素可见 |
+| `not_visible` | 元素不存在或不可见 |
+| `text_contains` | 元素文本包含期望字符串；`expected` 可为字符串列表 |
+| `text_equals` | 元素文本等于期望字符串 |
+| `html_contains` | 元素 HTML 包含期望字符串 |
+| `html_equals` | 元素 HTML 等于期望字符串 |
+| `enabled` | 元素可用 |
+| `disabled` | 元素不可用 |
+| `count` | 匹配元素数量等于 `expected` |
+| `input_value_equals` | 输入控件当前值等于 `expected` |
+| `input_value_contains` | 输入控件当前值包含 `expected` |
+| `attribute_equals` | 指定属性值等于 `expected`，需提供 `attribute` |
+| `attribute_contains` | 指定属性值包含 `expected`，需提供 `attribute` |
+| `class_contains` | 元素 `class` 属性包含 `expected` |
+| `url_equals` | 当前页面 URL 等于 `expected` |
+| `url_contains` | 当前页面 URL 包含 `expected` |
+| `text_sequence` | 多元素文本序列等于 `expected` 列表；`mode: contains_order` 表示按顺序包含 |
+
+示例：
+
+```yaml
+assertions:
+  - type: text_contains
+    locator: {strategy: bem_css, value: .message:last-child}
+    expected:
+      - 你好
+      - 欢迎
+```
+
+属性断言和文本序列断言示例：
+
+```yaml
+assertions:
+  - type: attribute_contains
+    locator: {strategy: css, value: button.submit}
+    attribute: aria-label
+    expected: 提交
+  - type: text_sequence
+    locator: {strategy: css, value: .assistant-item}
+    expected: [写作, 翻译, 总结]
+    mode: contains_order
+```
+
+#### CLI 使用
+
+运行单个文件或目录：
+
+```shell
+youqu web-spec run examples/web_spec/specs --config examples/web_spec/web_spec.yaml
+```
+
+只加载校验并输出用例统计，不启动浏览器：
+
+```shell
+youqu web-spec run examples/web_spec/specs --config examples/web_spec/web_spec.yaml --dry-run
+```
+
+常用运行参数：
+
+```shell
+youqu web-spec run path/to/spec_or_dir --headed --verbose
+youqu web-spec run path/to/spec_or_dir --report-dir report/web_spec/manual
+youqu web-spec run path/to/spec_or_dir --no-screenshot
+```
+
+列举和筛选用例：
+
+```shell
+youqu web-spec list examples/web_spec/specs
+youqu web-spec list examples/web_spec/specs --module 聊天区
+youqu web-spec list examples/web_spec/specs --tag smoke
+```
+
+重建索引：
+
+```shell
+youqu web-spec index examples/web_spec/specs
+```
+
+静态检查 spec 质量，不启动浏览器：
+
+```shell
+youqu web-spec check examples/web_spec/specs
+youqu web-spec check path/to/spec_or_dir
+```
+
+`check` 会检查 YAML/schema、兼容字段、脆弱 selector、过宽 text/css locator、长固定等待、URL 断言冗余 locator 等问题；存在 `ERROR` 时命令返回非 0，只有 `WARN` 时仍返回 0。
+
+#### 报告输出
+
+执行后会在 `report_dir` 下生成：
+
+```text
+report/web_spec/<timestamp>/
+├── summary.json
+├── summary.html
+└── <spec-id>/
+    ├── report.json
+    ├── report.html
+    └── step_<order>.png
+```
+
+`summary.*` 是批量运行汇总，单个 spec 目录下保存步骤、action、assertion、截图和错误信息。
+
+#### 索引行为
+
+`youqu web-spec list <spec_dir>` 会读取 `<spec_dir>/index.yaml`。如果索引不存在，或索引版本低于当前 `WebSpecIndex.INDEX_VERSION`，命令会自动重建并写回 `index.yaml`。
+
+如果希望显式刷新索引，可执行：
+
+```shell
+youqu web-spec index <spec_dir>
+```
+
+#### 常见错误
+
+| 现象 | 处理方式 |
+|------|----------|
+| `Web spec 需要安装 Playwright` | 安装 `youqu-framework[webui]` 或源码环境执行 `pip install -e ".[webui]"` |
+| 浏览器启动失败 | 执行 `playwright install chromium`，或检查系统依赖 |
+| locator 匹配 0 个元素 | 检查页面是否进入正确状态，或调整 selector/text/test_id |
+| locator 匹配多个元素 | 使用更精确 locator，或显式设置 `first: true` |
+| `list` 后 `index.yaml` 变化 | 这是索引缺失或版本过旧触发的自动重建；确认后提交新索引即可 |
+| `web-spec check` 报 `ERROR` | 修复对应 YAML/schema 问题后再运行；`WARN` 是质量建议，可按项目情况逐步处理 |
+
 ### 运行测试
 
 在项目根目录下有一个 `manage.py` ，它是执行器入口，提供了本地执行、远程执行等的功能。

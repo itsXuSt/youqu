@@ -62,6 +62,21 @@ def execute(page: Any, spec: ActionSpec, execution: ExecutionSpec | None = None)
                 time.sleep(spec.timeout_ms / 1000)
         elif spec.type == ActionType.SCROLL:
             resolved = _do_scroll(page, spec)
+        elif spec.type == ActionType.RIGHT_CLICK:
+            resolved = _wait_and_resolve(page, spec, execution)
+            resolved.locator.click(button="right", timeout=spec.timeout_ms)
+        elif spec.type == ActionType.DBLCLICK:
+            resolved = _wait_and_resolve(page, spec, execution)
+            resolved.locator.dblclick(timeout=spec.timeout_ms)
+        elif spec.type == ActionType.DRAG_TO:
+            resolved = _resolve_required(page, spec, require_unique=True)
+            target = _resolve_target(page, spec)
+            resolved.locator.drag_to(target.locator, timeout=spec.timeout_ms)
+        elif spec.type == ActionType.UPLOAD_FILE:
+            if spec.value is None:
+                raise ValueError("upload_file 需要 value 参数")
+            resolved = _resolve_required(page, spec, require_unique=True)
+            resolved.locator.set_input_files(spec.value)
         else:
             raise ValueError(f"不支持的 action type: {spec.type}")
 
@@ -77,6 +92,12 @@ def _resolve_required(page: Any, spec: ActionSpec, require_unique: bool) -> Reso
     if not spec.locator:
         raise ValueError(f"{spec.type.value} 需要 locator")
     return resolve(page, spec.locator, require_unique=require_unique)
+
+
+def _resolve_target(page: Any, spec: ActionSpec) -> ResolvedLocator:
+    if not spec.target:
+        raise ValueError("drag_to 需要 target")
+    return resolve(page, spec.target, require_unique=True)
 
 
 def _wait_and_resolve(page: Any, spec: ActionSpec, execution: ExecutionSpec | None) -> ResolvedLocator:

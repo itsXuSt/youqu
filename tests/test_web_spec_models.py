@@ -6,7 +6,7 @@
 import pytest
 from pydantic import ValidationError
 
-from web_spec.models import AssertionType, LocatorStrategy, TestSpec
+from web_spec.models import ActionType, AssertionType, LocatorStrategy, TestSpec
 
 
 def test_parse_minimal_web_spec():
@@ -58,3 +58,64 @@ def test_locator_first_flag_is_supported():
     })
 
     assert spec.steps[0].actions[0].locator.first is True
+
+
+def test_drag_to_action_target_is_supported():
+    spec = TestSpec.model_validate({
+        "id": "drag_case",
+        "title": "拖拽元素",
+        "steps": [{
+            "description": "拖拽到目标",
+            "actions": [{
+                "type": "drag_to",
+                "locator": {"strategy": "css", "value": ".source"},
+                "target": {"strategy": "css", "value": ".target"},
+            }],
+        }],
+    })
+
+    action = spec.steps[0].actions[0]
+    assert action.type == ActionType.DRAG_TO
+    assert action.target.value == ".target"
+
+
+def test_numeric_priority_is_normalized_to_string():
+    spec = TestSpec.model_validate({
+        "id": "priority_case",
+        "title": "数字优先级",
+        "priority": 1,
+        "steps": [{
+            "description": "检查",
+            "assertions": [{"type": "visible", "locator": {"strategy": "text", "value": "ok"}}],
+        }],
+    })
+
+    assert spec.priority == "1"
+
+
+def test_new_assertion_fields_are_supported():
+    spec = TestSpec.model_validate({
+        "id": "assertion_case",
+        "title": "新增断言字段",
+        "steps": [{
+            "description": "检查属性和顺序",
+            "assertions": [
+                {
+                    "type": "attribute_contains",
+                    "locator": {"strategy": "css", "value": "button"},
+                    "attribute": "aria-label",
+                    "expected": "提交",
+                },
+                {
+                    "type": "text_sequence",
+                    "locator": {"strategy": "css", "value": ".item"},
+                    "expected": ["A", "B"],
+                    "mode": "contains_order",
+                },
+            ],
+        }],
+    })
+
+    first, second = spec.steps[0].assertions
+    assert first.attribute == "aria-label"
+    assert second.mode == "contains_order"

@@ -17,8 +17,10 @@ def run(args) -> None:
         _list_specs(args)
     elif command == "index":
         _index_specs(args)
+    elif command == "check":
+        _check_specs(args)
     else:
-        print("Error: missing web-spec subcommand: run/list/index", file=sys.stderr)
+        print("Error: missing web-spec subcommand: run/list/index/check", file=sys.stderr)
         sys.exit(1)
 
 
@@ -111,3 +113,30 @@ def _index_specs(args) -> None:
     stats = idx.get_stats()
     print(f"  Modules: {list(stats.get('modules', {}).keys())}")
     print(f"  Tags: {list(stats.get('tags', {}).keys())}")
+
+
+def _check_specs(args) -> None:
+    from web_spec.checker import check_specs
+
+    try:
+        report = check_specs(args.spec_path)
+    except FileNotFoundError as exc:
+        print(f"Web spec check 失败: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    print(
+        f"Web spec check: checked={report.checked}, skipped={report.skipped}, "
+        f"errors={report.errors}, warnings={report.warnings}"
+    )
+    for issue in report.issues:
+        location = issue.file
+        if issue.step is not None:
+            location += f" step {issue.step}"
+        if issue.item:
+            location += f" {issue.item}"
+        print(f"[{issue.severity}] {location}: {issue.message}")
+        if issue.suggestion:
+            print(f"  建议: {issue.suggestion}")
+
+    if not report.ok:
+        sys.exit(1)

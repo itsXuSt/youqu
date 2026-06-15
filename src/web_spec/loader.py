@@ -27,7 +27,10 @@ def load_spec(path: str | Path) -> TestSpec:
         raise SpecValidationError(f"spec 路径不是文件: {file_path}")
 
     raw_text = file_path.read_text(encoding="utf-8")
-    raw_data = yaml.safe_load(raw_text)
+    try:
+        raw_data = yaml.safe_load(raw_text)
+    except yaml.YAMLError as exc:
+        raise SpecValidationError(f"[{file_path}] YAML 解析失败: {exc}") from exc
     if raw_data is None:
         raise SpecValidationError(f"[{file_path}] spec 文件为空")
     if not isinstance(raw_data, dict):

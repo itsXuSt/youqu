@@ -8,7 +8,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, ClassVar, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class LocatorStrategy(str, Enum):
@@ -46,6 +46,10 @@ class ActionType(str, Enum):
     SELECT_OPTION = "select_option"
     WAIT_FOR = "wait_for"
     SCROLL = "scroll"
+    RIGHT_CLICK = "right_click"
+    DBLCLICK = "dblclick"
+    DRAG_TO = "drag_to"
+    UPLOAD_FILE = "upload_file"
 
 
 class SettleSpec(BaseModel):
@@ -66,6 +70,7 @@ class ActionSpec(BaseModel):
 
     type: ActionType
     locator: Optional[Locator] = None
+    target: Optional[Locator] = None
     value: Optional[Any] = None
     key: Optional[str] = None
     direction: Optional[str] = None
@@ -85,6 +90,14 @@ class AssertionType(str, Enum):
     ENABLED = "enabled"
     DISABLED = "disabled"
     COUNT = "count"
+    INPUT_VALUE_EQUALS = "input_value_equals"
+    INPUT_VALUE_CONTAINS = "input_value_contains"
+    ATTRIBUTE_EQUALS = "attribute_equals"
+    ATTRIBUTE_CONTAINS = "attribute_contains"
+    CLASS_CONTAINS = "class_contains"
+    URL_EQUALS = "url_equals"
+    URL_CONTAINS = "url_contains"
+    TEXT_SEQUENCE = "text_sequence"
 
 
 class AssertionSpec(BaseModel):
@@ -95,6 +108,8 @@ class AssertionSpec(BaseModel):
     type: AssertionType
     locator: Optional[Locator] = None
     expected: Optional[Any] = None
+    attribute: Optional[str] = None
+    mode: Optional[str] = None
     timeout_ms: Optional[int] = None
     retry: bool = True
 
@@ -138,6 +153,13 @@ class TestSpec(BaseModel):
 
     __test__: ClassVar[bool] = False
     model_config = ConfigDict(extra="allow")
+
+    @field_validator("priority", mode="before")
+    @classmethod
+    def _normalize_priority(cls, value: Any) -> str:
+        if value is None:
+            return "1"
+        return str(value)
 
     id: str
     title: str
