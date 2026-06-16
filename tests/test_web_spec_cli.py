@@ -10,6 +10,84 @@ import pytest
 from cli.web_spec import run
 
 
+def test_web_spec_init_config(tmp_path, capsys):
+    config_path = tmp_path / "web_spec.yaml"
+    args = Namespace(
+        web_spec_command="init",
+        config_path=str(config_path),
+        force=False,
+    )
+
+    run(args)
+
+    captured = capsys.readouterr()
+    assert "Web spec config created" in captured.out
+    assert "base_url: http://localhost:5173" in config_path.read_text(encoding="utf-8")
+
+
+def test_web_spec_init_config_refuses_existing_file(tmp_path, capsys):
+    config_path = tmp_path / "web_spec.yaml"
+    config_path.write_text("base_url: old\n", encoding="utf-8")
+    args = Namespace(
+        web_spec_command="init",
+        config_path=str(config_path),
+        force=False,
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        run(args)
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "--force" in captured.err
+    assert config_path.read_text(encoding="utf-8") == "base_url: old\n"
+
+
+def test_web_spec_run_auto_discovers_config(tmp_path, monkeypatch):
+    spec_path = tmp_path / "login.yaml"
+    spec_path.write_text("""
+id: login
+title: 登录测试
+steps:
+  - description: 检查
+    assertions:
+      - type: visible
+        locator: {strategy: text, value: 欢迎}
+""", encoding="utf-8")
+    (tmp_path / "web_spec.yaml").write_text("""
+base_url: http://example.test
+entry_route: /chat
+""", encoding="utf-8")
+    seen = {}
+
+    class FakeRunner:
+        def __init__(self, config, reporter=None):
+            seen["base_url"] = config.base_url
+            seen["entry_route"] = config.entry_route
+
+        def run_all(self, specs, report_dir=None):
+            from web_spec.result import SuiteRecord
+            suite = SuiteRecord()
+            suite.finalize()
+            return suite
+
+    monkeypatch.setattr("web_spec.runner.WebSpecRunner", FakeRunner)
+    args = Namespace(
+        web_spec_command="run",
+        spec_path=str(spec_path),
+        config=None,
+        headed=False,
+        report_dir=None,
+        dry_run=False,
+        no_screenshot=False,
+        verbose=False,
+    )
+
+    run(args)
+
+    assert seen == {"base_url": "http://example.test", "entry_route": "/chat"}
+
+
 def test_web_spec_run_dry_run(tmp_path, capsys):
     spec_path = tmp_path / "login.yaml"
     spec_path.write_text("""
@@ -64,6 +142,58 @@ steps:
     assert "Web spec check: checked=1" in captured.out
     assert "[WARN]" in captured.out
     assert "selector" in captured.out
+
+
+def test_web_spec_suite_auto_discovers_config(tmp_path, monkeypatch):
+    spec_path = tmp_path / "login.yaml"
+    spec_path.write_text("""
+id: login
+title: 登录测试
+steps:
+  - description: 检查
+    assertions:
+      - type: visible
+        locator: {strategy: text, value: 欢迎}
+""", encoding="utf-8")
+    suite_path = tmp_path / "smoke.suite.yaml"
+    suite_path.write_text("""
+id: smoke
+name: 冒烟套件
+specs:
+  - login.yaml
+""", encoding="utf-8")
+    (tmp_path / "web_spec.yaml").write_text("""
+base_url: http://example.test
+entry_route: /suite
+""", encoding="utf-8")
+    seen = {}
+
+    class FakeRunner:
+        def __init__(self, config, reporter=None):
+            seen["base_url"] = config.base_url
+            seen["entry_route"] = config.entry_route
+
+        def run_suite(self, suite_spec, report_dir=None):
+            from web_spec.result import SuiteRecord
+            suite = SuiteRecord(suite_id=suite_spec.id, suite_name=suite_spec.name)
+            suite.finalize()
+            return suite
+
+    monkeypatch.setattr("web_spec.runner.WebSpecRunner", FakeRunner)
+    args = Namespace(
+        web_spec_command="suite",
+        suite_path=str(suite_path),
+        config=None,
+        headed=False,
+        report_dir=None,
+        dry_run=False,
+        no_screenshot=False,
+        verbose=False,
+    )
+
+    run(args)
+
+    assert seen == {"base_url": "http://example.test", "entry_route": "/suite"}
 
 
 def test_web_spec_suite_dry_run(tmp_path, capsys):

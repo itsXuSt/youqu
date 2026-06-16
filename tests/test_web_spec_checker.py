@@ -51,6 +51,10 @@ steps:
   - action: click
     ref: login_button
 """, encoding="utf-8")
+    (spec_dir / "web_spec.yaml").write_text("""
+base_url: http://localhost:5173
+entry_route: /
+""", encoding="utf-8")
     (spec_dir / "web.yaml").write_text("""
 title: Web 用例
 steps:
@@ -63,7 +67,7 @@ steps:
     report = check_specs(spec_dir)
 
     assert report.checked == 1
-    assert report.skipped == 2
+    assert report.skipped == 3
     assert report.errors == 0
 
 

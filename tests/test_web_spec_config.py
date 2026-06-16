@@ -3,7 +3,52 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Unit tests for src.web_spec.config."""
 
-from web_spec.config import load_web_spec_config
+import pytest
+
+from web_spec.config import find_web_spec_config, init_web_spec_config, load_web_spec_config
+
+
+def test_find_web_spec_config_finds_nearest_config_upward(tmp_path):
+    config_path = tmp_path / "web_spec.yaml"
+    config_path.write_text("base_url: http://localhost:5173\n", encoding="utf-8")
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    spec_path = spec_dir / "login.yaml"
+    spec_path.write_text("title: 登录\n", encoding="utf-8")
+
+    assert find_web_spec_config(spec_path) == config_path
+    assert find_web_spec_config(spec_dir) == config_path
+
+
+def test_init_web_spec_config_creates_default_config(tmp_path):
+    config_path = tmp_path / "web_spec.yaml"
+
+    created = init_web_spec_config(config_path)
+
+    assert created == config_path
+    config = load_web_spec_config(config_path)
+    assert config.base_url == "http://localhost:5173"
+    assert config.entry_route == "/"
+    assert config.report_dir == "report/web_spec"
+
+
+def test_init_web_spec_config_refuses_existing_file_without_force(tmp_path):
+    config_path = tmp_path / "web_spec.yaml"
+    config_path.write_text("base_url: old\n", encoding="utf-8")
+
+    with pytest.raises(FileExistsError):
+        init_web_spec_config(config_path)
+
+    assert config_path.read_text(encoding="utf-8") == "base_url: old\n"
+
+
+def test_init_web_spec_config_overwrites_existing_file_with_force(tmp_path):
+    config_path = tmp_path / "web_spec.yaml"
+    config_path.write_text("base_url: old\n", encoding="utf-8")
+
+    init_web_spec_config(config_path, force=True)
+
+    assert "http://localhost:5173" in config_path.read_text(encoding="utf-8")
 
 
 def test_default_config_values():

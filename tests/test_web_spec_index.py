@@ -65,6 +65,10 @@ steps:
   - action: click
     ref: login_button
 """, encoding="utf-8")
+    (spec_dir / "web_spec.yaml").write_text("""
+base_url: http://localhost:5173
+entry_route: /
+""", encoding="utf-8")
     idx = WebSpecIndex(spec_dir)
 
     specs = idx.rebuild()

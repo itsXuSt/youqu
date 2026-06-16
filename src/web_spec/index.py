@@ -11,7 +11,7 @@ from typing import Any
 
 import yaml
 
-from web_spec.kind import is_suite_file
+from web_spec.kind import is_config_file, is_suite_file
 from web_spec.loader import SpecValidationError, load_spec
 
 
@@ -36,7 +36,7 @@ class WebSpecIndex:
     def rebuild(self) -> list[dict[str, Any]]:
         specs = []
         for spec_file in sorted(self.spec_dir.rglob("*.y*ml")):
-            if spec_file.name == "index.yaml" or is_suite_file(spec_file):
+            if spec_file.name == "index.yaml" or is_suite_file(spec_file) or is_config_file(spec_file):
                 continue
             try:
                 spec = load_spec(spec_file)

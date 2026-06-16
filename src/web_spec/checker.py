@@ -11,7 +11,7 @@ from typing import Any
 
 import yaml
 
-from web_spec.kind import WebSpecFileKind, detect_web_spec_kind, is_suite_file
+from web_spec.kind import WebSpecFileKind, detect_web_spec_kind, is_config_file, is_suite_file
 from web_spec.loader import SpecValidationError, load_spec
 from web_spec.models import ActionSpec, ActionType, AssertionSpec, Locator, LocatorStrategy, TestSpec
 from web_spec.suite import load_suite
@@ -152,7 +152,7 @@ def _iter_yaml_files(root: Path) -> list[Path]:
 
 
 def _is_non_spec_yaml(file_path: Path) -> bool:
-    return file_path.name in {"index.yaml", "elements.yaml"}
+    return file_path.name in {"index.yaml", "elements.yaml"} or is_config_file(file_path)
 
 
 def _read_yaml_mapping(file_path: Path) -> dict[str, Any]:

@@ -160,6 +160,18 @@ def test_load_spec_dir_loads_recursively_and_skips_index(tmp_path):
     assert [spec.id for spec in specs] == ["b", "a"]
 
 
+def test_load_spec_dir_skips_web_spec_config_file(tmp_path):
+    _write_spec(tmp_path / "login.yaml")
+    (tmp_path / "web_spec.yaml").write_text("""
+base_url: http://localhost:5173
+entry_route: /
+""", encoding="utf-8")
+
+    specs = load_spec_dir(tmp_path)
+
+    assert [spec.id for spec in specs] == ["login"]
+
+
 def test_load_specs_accepts_file_or_directory(tmp_path):
     spec_dir = tmp_path / "specs"
     spec_dir.mkdir()

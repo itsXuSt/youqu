@@ -121,6 +121,10 @@ def main():
     p_web_check = web_spec_sub.add_parser("check", help="Statically check Web specs")
     p_web_check.add_argument("spec_path", help="Web spec file or directory")
 
+    p_web_init = web_spec_sub.add_parser("init", help="Initialize Web spec config file")
+    p_web_init.add_argument("config_path", nargs="?", default="web_spec.yaml", help="Config file path")
+    p_web_init.add_argument("--force", action="store_true", help="Overwrite existing config file")
+
     p_web_suite = web_spec_sub.add_parser("suite", help="Run Web spec suite file")
     p_web_suite.add_argument("suite_path", help="Web spec suite.yaml path")
     p_web_suite.add_argument("--config", default=None, help="Web spec config path")

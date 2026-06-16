@@ -25,6 +25,11 @@ def is_suite_file(path: str | Path) -> bool:
     return name in {"suite.yaml", "suite.yml"} or name.endswith((".suite.yaml", ".suite.yml"))
 
 
+def is_config_file(path: str | Path) -> bool:
+    """Return whether a YAML file name is the conventional Web spec config file."""
+    return Path(path).name in {"web_spec.yaml", "web_spec.yml"}
+
+
 def detect_web_spec_kind(raw: dict[str, Any]) -> WebSpecFileKind:
     """Detect whether a parsed YAML mapping is a case, suite, unknown or invalid file."""
     has_steps = "steps" in raw

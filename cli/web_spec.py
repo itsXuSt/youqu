@@ -19,15 +19,17 @@ def run(args) -> None:
         _index_specs(args)
     elif command == "check":
         _check_specs(args)
+    elif command == "init":
+        _init_config(args)
     elif command == "suite":
         _run_suite(args)
     else:
-        print("Error: missing web-spec subcommand: run/list/index/check/suite", file=sys.stderr)
+        print("Error: missing web-spec subcommand: run/list/index/check/init/suite", file=sys.stderr)
         sys.exit(1)
 
 
 def _run_specs(args) -> None:
-    from web_spec.config import load_web_spec_config
+    from web_spec.config import find_web_spec_config, load_web_spec_config
     from web_spec.loader import SpecValidationError, load_specs
     from web_spec.reporter import print_suite_summary
     from web_spec.runner import WebSpecRunner
@@ -39,13 +41,14 @@ def _run_specs(args) -> None:
         print(f"spec 加载失败: {exc}", file=sys.stderr)
         sys.exit(1)
 
+    config_path = args.config or find_web_spec_config(args.spec_path)
     overrides = {
         "headless": False if args.headed else None,
         "report_dir": args.report_dir,
         "screenshot_on_step": False if args.no_screenshot else None,
     }
     try:
-        config = load_web_spec_config(args.config, overrides=overrides)
+        config = load_web_spec_config(config_path, overrides=overrides)
     except (FileNotFoundError, ValueError) as exc:
         print(f"Web spec 配置加载失败: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -70,8 +73,21 @@ def _run_specs(args) -> None:
         sys.exit(1)
 
 
+def _init_config(args) -> None:
+    from web_spec.config import init_web_spec_config
+
+    try:
+        config_path = init_web_spec_config(args.config_path, force=args.force)
+    except FileExistsError as exc:
+        print(f"Web spec 配置初始化失败: {exc}", file=sys.stderr)
+        print("  如需覆盖，请添加 --force。", file=sys.stderr)
+        sys.exit(1)
+    print(f"Web spec config created: {config_path}")
+
+
+
 def _run_suite(args) -> None:
-    from web_spec.config import load_web_spec_config
+    from web_spec.config import find_web_spec_config, load_web_spec_config
     from web_spec.loader import SpecValidationError
     from web_spec.reporter import print_suite_summary
     from web_spec.runner import WebSpecRunner
@@ -84,13 +100,14 @@ def _run_suite(args) -> None:
         print(f"suite 加载失败: {exc}", file=sys.stderr)
         sys.exit(1)
 
+    config_path = args.config or find_web_spec_config(args.suite_path)
     overrides = {
         "headless": False if args.headed else None,
         "report_dir": args.report_dir,
         "screenshot_on_step": False if args.no_screenshot else None,
     }
     try:
-        config = load_web_spec_config(args.config, overrides=overrides)
+        config = load_web_spec_config(config_path, overrides=overrides)
     except (FileNotFoundError, ValueError) as exc:
         print(f"Web spec 配置加载失败: {exc}", file=sys.stderr)
         sys.exit(1)

@@ -40,6 +40,30 @@ class WebSpecConfig:
 
 
 _DEFAULTS = WebSpecConfig()
+_CONFIG_FILENAMES = ("web_spec.yaml", "web_spec.yml")
+
+
+def find_web_spec_config(start: str | Path | None = None) -> Path | None:
+    """Find the nearest conventional Web spec config file from a path upward."""
+    base = Path(start) if start is not None else Path.cwd()
+    if base.is_file():
+        base = base.parent
+    for directory in (base, *base.parents):
+        for name in _CONFIG_FILENAMES:
+            candidate = directory / name
+            if candidate.is_file():
+                return candidate
+    return None
+
+
+def init_web_spec_config(path: str | Path = "web_spec.yaml", force: bool = False) -> Path:
+    """Create a default Web spec config YAML file."""
+    config_path = Path(path)
+    if config_path.exists() and not force:
+        raise FileExistsError(f"Web spec config already exists: {config_path}")
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    config_path.write_text(_default_config_yaml(), encoding="utf-8")
+    return config_path
 
 
 def load_web_spec_config(
@@ -165,6 +189,31 @@ def _as_bool(value: Any) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in ("1", "true", "yes", "y", "on")
     return bool(value)
+
+
+def _default_config_yaml() -> str:
+    return """# Web Spec 执行配置
+# base_url 是被测 Web 服务地址；entry_route 是默认入口路由。
+base_url: http://localhost:5173
+entry_route: /
+
+# 浏览器配置：browser 支持 chromium/firefox/webkit，headless=false 可显示浏览器窗口。
+browser: chromium
+headless: true
+viewport:
+  width: 1280
+  height: 720
+
+# 断言与稳定等待配置。
+assertion_timeout_ms: 30000
+retry_interval_ms: 500
+auto_wait: interactive
+settle_ms: 300
+
+# 报告配置。
+screenshot_on_step: true
+report_dir: report/web_spec
+"""
 
 
 def _config_to_dict(config: WebSpecConfig) -> dict[str, Any]:

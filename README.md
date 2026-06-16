@@ -218,6 +218,13 @@ playwright install chromium
 
 #### 配置文件
 
+可以先初始化一份默认配置：
+
+```shell
+youqu web-spec init web_spec.yaml
+# 如需覆盖已有文件：youqu web-spec init web_spec.yaml --force
+```
+
 Web Spec 配置可写成扁平结构，也兼容 `target`、`engine`、`paths` 分组。示例见 `examples/web_spec/web_spec.yaml`：
 
 ```yaml
@@ -379,6 +386,13 @@ assertions:
 ```
 
 #### CLI 使用
+
+初始化配置文件：
+
+```shell
+youqu web-spec init web_spec.yaml
+youqu web-spec init path/to/web_spec.yaml --force
+```
 
 运行单个文件或目录：
 
