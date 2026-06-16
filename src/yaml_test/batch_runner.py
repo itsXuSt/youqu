@@ -4,12 +4,12 @@
 from __future__ import annotations
 
 import os
-import re
 import shutil
 import signal
 import subprocess
 import sys
 import threading
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Callable
 
@@ -25,32 +25,36 @@ def install_sigterm_handler() -> None:
     signal.signal(signal.SIGTERM, _on_sigterm)
 
 
-def _parse_pytest_output(output: str) -> dict:
-    passed = failed = skipped = 0
-    for line in output.splitlines():
-        line = line.strip()
-        m = re.search(r"(\d+)\s+passed", line)
-        if m:
-            passed = int(m.group(1))
-            m2 = re.search(r"(\d+)\s+failed", line)
-            if m2:
-                failed = int(m2.group(1))
-            m3 = re.search(r"(\d+)\s+skipped", line)
-            if m3:
-                skipped = int(m3.group(1))
-    return {"passed": passed, "failed": failed, "skipped": skipped}
+def _parse_junit_xml(xml_path: Path) -> dict:
+    """Parse pytest --junitxml output for structured test results.
 
+    Returns:
+        {"passed": int, "failed": int, "skipped": int,
+         "errors": {test_name: message}}
+    """
+    result = {"passed": 0, "failed": 0, "skipped": 0, "errors": {}}
+    if not xml_path.exists():
+        return result
 
-def _extract_error_snippet(stderr: str, max_len: int = 500) -> str:
-    lines = [l.strip() for l in stderr.strip().splitlines() if l.strip()]
-    error_lines = []
-    for line in lines:
-        if line.startswith(("E ", "ERROR", "FAILED", "assert ", "YamlTestError")):
-            error_lines.append(line)
-    if not error_lines:
-        error_lines = lines[-3:] if len(lines) > 3 else lines
-    snippet = "; ".join(error_lines[:5])
-    return snippet[:max_len]
+    try:
+        tree = ET.parse(xml_path)
+    except ET.ParseError:
+        return result
+
+    for tc in tree.findall(".//testcase"):
+        fail_el = tc.find("failure")
+        skip_el = tc.find("skipped")
+        if fail_el is not None:
+            result["failed"] += 1
+            name = tc.get("name", "")
+            msg = fail_el.get("message", "") or fail_el.text or ""
+            result["errors"][name] = msg[:500]
+        elif skip_el is not None:
+            result["skipped"] += 1
+        else:
+            result["passed"] += 1
+
+    return result
 
 
 def _merge_allure_dirs(report_root: Path) -> Path:
@@ -63,6 +67,8 @@ def _merge_allure_dirs(report_root: Path) -> Path:
             if not case_dir.is_dir():
                 continue
             for item in case_dir.iterdir():
+                if item.suffix != ".json":
+                    continue
                 dest = target / item.name
                 if not dest.exists():
                     shutil.copy2(item, dest)
@@ -148,6 +154,7 @@ def run_batches(
 
             allure_dir = pytest_ini_dir / "report" / f"batch_{idx+1}" / f"case_{test_id}"
             allure_dir.mkdir(parents=True, exist_ok=True)
+            junit_path = pytest_ini_dir / "report" / f"batch_{idx+1}" / f"{test_id}.xml"
 
             cmd = [
                 sys.executable, "-m", "pytest",
@@ -155,6 +162,7 @@ def run_batches(
                 "--rootdir", str(pytest_ini_dir),
                 "-q", "--tb=short",
                 "--alluredir", str(allure_dir),
+                f"--junitxml={junit_path}",
                 yaml_file,
             ]
 
@@ -167,18 +175,16 @@ def run_batches(
                 "error": "",
             }
 
-            stderr = ""
             try:
                 proc = subprocess.Popen(
                     cmd,
-                    stdout=subprocess.PIPE,
+                    stdout=subprocess.DEVNULL,
                     stderr=subprocess.PIPE,
-                    text=True,
                     env={**os.environ, "PYTHONIOENCODING": "utf-8"},
                 )
                 try:
-                    stdout, stderr = proc.communicate(timeout=case_timeout)
-                    parsed = _parse_pytest_output(stdout)
+                    proc.communicate(timeout=case_timeout)
+                    parsed = _parse_junit_xml(junit_path)
                     if proc.returncode != 0:
                         if parsed["failed"] > 0:
                             case_result["failed"] = parsed["failed"]
@@ -207,12 +213,13 @@ def run_batches(
                     case_result["timeout"] = 1
                     batch_timeout += 1
             except (OSError, ValueError):
+                parsed = {"errors": {}}
                 case_result["failed"] = 1
                 case_result["error"] = "Process execution error"
                 batch_failed += 1
 
-            if case_result["failed"] > 0 and stderr and stderr.strip():
-                case_result["error"] = _extract_error_snippet(stderr)
+            if case_result["failed"] > 0 and not case_result["error"]:
+                case_result["error"] = "; ".join(parsed["errors"].values())[:500]
 
             if case_result["timeout"] > 0:
                 case_result["error"] = f"Timeout after {case_timeout}s"

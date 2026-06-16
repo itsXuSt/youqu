@@ -6,7 +6,8 @@
 import time
 import pytest
 
-from src.mcp.jobs import JobManager, JobStatus, execute_batches, _parse_pytest_output
+from src.mcp.jobs import JobManager, JobStatus, execute_batches
+from src.yaml_test.batch_runner import _parse_junit_xml
 
 
 class TestJobStatus:
@@ -128,32 +129,32 @@ class TestJobManagerSerialExecution:
         assert jm.get_status(job2.job_id).result == {"second": True}
 
 
-class TestParsePytestOutput:
-    def test_parse_standard_output(self):
-        output = "2 passed, 1 failed, 3 skipped in 5.2s"
-        result = _parse_pytest_output(output)
-        assert result == {"passed": 2, "failed": 1, "skipped": 3}
+class TestParseJunitXml:
+    def test_parse_all_passed(self, tmp_path):
+        xml = '<?xml version="1.0"?><testsuites><testsuite><testcase name="a" /><testcase name="b" /></testsuite></testsuites>'
+        p = tmp_path / "j.xml"
+        p.write_text(xml)
+        result = _parse_junit_xml(p)
+        assert result["passed"] == 2
+        assert result["failed"] == 0
 
-    def test_parse_only_passed(self):
-        output = "5 passed in 1.0s"
-        result = _parse_pytest_output(output)
-        assert result == {"passed": 5, "failed": 0, "skipped": 0}
+    def test_parse_with_failures(self, tmp_path):
+        xml = '<?xml version="1.0"?><testsuites><testsuite><testcase name="a" /><testcase name="b"><failure message="err1">trace</failure></testcase></testsuite></testsuites>'
+        p = tmp_path / "j.xml"
+        p.write_text(xml)
+        result = _parse_junit_xml(p)
+        assert result["passed"] == 1
+        assert result["failed"] == 1
 
-    def test_parse_empty_output(self):
-        result = _parse_pytest_output("")
-        assert result == {"passed": 0, "failed": 0, "skipped": 0}
+    def test_parse_missing_file(self, tmp_path):
+        result = _parse_junit_xml(tmp_path / "nonexistent.xml")
+        assert result["passed"] == 0
 
-    def test_parse_no_match(self):
-        result = _parse_pytest_output("some other output without counts")
-        assert result == {"passed": 0, "failed": 0, "skipped": 0}
-
-    def test_parse_multiline(self):
-        output = """collected 5 items
-test_a.py::test_x PASSED
-test_b.py::test_y FAILED
-5 passed, 2 failed, 1 skipped in 10.0s"""
-        result = _parse_pytest_output(output)
-        assert result == {"passed": 5, "failed": 2, "skipped": 1}
+    def test_parse_malformed(self, tmp_path):
+        p = tmp_path / "bad.xml"
+        p.write_text("not xml")
+        result = _parse_junit_xml(p)
+        assert result["passed"] == 0
 
 
 class TestExecuteBatches:

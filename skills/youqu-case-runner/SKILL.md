@@ -312,9 +312,9 @@ The `--multica-report` command handles internally:
 - Allure report data merge into unified directory
 - File locking (`fcntl.flock`) to prevent concurrent execution
 - Heartbeat output to prevent daemon watchdog timeout
-- **HTTP report prompt** after completion: interactive terminal asks
-  y/n to start `youqu report --clean --serve`; non-interactive prints
-  the command for manual execution
+- **Report viewing hint** in summary comment: includes
+  `youqu report --clean --serve` prompt; agent asks user, then runs
+  the command to serve HTTP report on the test machine
 
 ### Multica vs General Mode
 
@@ -326,6 +326,7 @@ The `--multica-report` command handles internally:
 | Progress reporting | Manual (agent reports) | Automatic (CLI posts comments) |
 | Failure detail table | No | Yes (per-batch in comment) |
 | Summary comment | No | Yes (aggregate counts on completion) |
+| Report serve prompt | No | Yes (hint in summary comment) |
 | Execution | MCP async or bash | CLI subprocess only |
 | Retry on failure | Optional | Forbidden |
 

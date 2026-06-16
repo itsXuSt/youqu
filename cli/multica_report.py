@@ -149,6 +149,17 @@ def _format_summary_comment(
     return "\n".join(lines)
 
 
+def _read_app_name(yaml_dir: Path) -> str:
+    """Read app identifier from elements.yaml."""
+    import yaml as _yaml
+    elements_file = yaml_dir / "elements.yaml"
+    if elements_file.exists():
+        raw = _yaml.safe_load(elements_file.read_text(encoding="utf-8")) or {}
+        if isinstance(raw, dict):
+            return raw.get("app", "")
+    return ""
+
+
 def run_multica(
     autotest_path: str | None,
     issue_id: str,
@@ -197,7 +208,7 @@ def run_multica(
     file_map = {t["id"]: t["file"] for t in runnable_tests}
 
     total_batches = (len(test_ids) + batch_size - 1) // batch_size
-    app_name = autotest.name
+    app_name = _read_app_name(yaml_dir) or str(autotest)
 
     if multica_available:
         start_comment = _format_start_comment(

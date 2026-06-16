@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from src.yaml_test.batch_runner import _parse_pytest_output as _parse_pytest_output
+from src.yaml_test.batch_runner import _parse_junit_xml as _parse_junit_xml
 
 logger = logging.getLogger(__name__)
 
@@ -216,20 +216,26 @@ def execute_batches(
             file_paths = [str(yaml_dir / file_map.get(tid, f"{tid}.yaml")) for tid in batch]
         else:
             file_paths = [str(yaml_dir / f"{tid}.yaml") for tid in batch]
+        allure_dir = pytest_ini_dir / "report" / f"batch_{idx+1}"
+        allure_dir.mkdir(parents=True, exist_ok=True)
+        report_dir = pytest_ini_dir / "report"
+        report_dir.mkdir(parents=True, exist_ok=True)
+        junit_path = report_dir / f"batch_{idx+1}.xml"
         cmd = [
             sys.executable, "-m", "pytest",
             "-c", str(pytest_ini_dir / "pytest.ini"),
             "--rootdir", str(pytest_ini_dir),
             "-q", "--tb=short",
-            "--alluredir", str(pytest_ini_dir / "report" / f"batch_{idx+1}"),
+            "--alluredir", str(allure_dir),
+            f"--junitxml={junit_path}",
         ] + file_paths
 
         try:
-            proc = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=600,
+            subprocess.run(
+                cmd, capture_output=False, timeout=600,
                 env={**os.environ, "PYTHONIOENCODING": "utf-8"},
             )
-            batch_result = _parse_pytest_output(proc.stdout)
+            batch_result = _parse_junit_xml(junit_path)
         except subprocess.TimeoutExpired:
             batch_result = {"passed": 0, "failed": len(batch), "skipped": 0, "error": "timeout"}
 
