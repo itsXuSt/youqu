@@ -90,6 +90,13 @@ class RunRecord:
     end_time: float = 0
     duration_seconds: float = 0
     report_dir: str | None = None
+    suite_id: str = ""
+    suite_name: str = ""
+    suite_module: str = ""
+    suite_tags: list[str] = field(default_factory=list)
+    suite_source: str = ""
+    suite_order: int = 0
+    spec_source: str = ""
 
     def finalize(self) -> None:
         self.end_time = time.time()
@@ -111,6 +118,9 @@ class SuiteRecord:
     suite_name: str = ""
     module: str = ""
     tags: list[str] = field(default_factory=list)
+    source: str = ""
+    fast_fail: bool = False
+    timeout: int | None = None
     specs: list[RunRecord] = field(default_factory=list)
     start_time: float = field(default_factory=time.time)
     end_time: float = 0

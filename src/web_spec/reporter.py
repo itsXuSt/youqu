@@ -35,6 +35,12 @@ def save_suite_summary(suite: SuiteRecord, output_dir: str | Path) -> None:
         "suite_name": suite.suite_name,
         "module": suite.module,
         "tags": suite.tags,
+        "source": suite.source,
+        "fast_fail": suite.fast_fail,
+        "timeout": suite.timeout,
+        "error": suite.error,
+        "start_time": suite.start_time,
+        "end_time": suite.end_time,
         "total": suite.total,
         "passed": suite.passed,
         "failed": suite.failed,
@@ -67,6 +73,19 @@ def print_suite_summary(suite: SuiteRecord) -> None:
 
 
 def _generate_spec_html(record: RunRecord) -> str:
+    suite_meta = ""
+    if record.suite_id:
+        suite_meta = (
+            "<section class='meta'>"
+            f"<p>Suite: {html_mod.escape(record.suite_id)} "
+            f"{html_mod.escape(record.suite_name)}</p>"
+            f"<p>Module: {html_mod.escape(record.suite_module)} "
+            f"Tags: {html_mod.escape(','.join(record.suite_tags))}</p>"
+            f"<p>Order: {record.suite_order} "
+            f"Suite source: {html_mod.escape(record.suite_source or '-')} "
+            f"Spec source: {html_mod.escape(record.spec_source or '-')}</p>"
+            "</section>"
+        )
     step_html = []
     for step in record.steps:
         actions = "".join(
@@ -99,6 +118,7 @@ def _generate_spec_html(record: RunRecord) -> str:
             f"<h1>{html_mod.escape(record.spec_id)} - {html_mod.escape(record.spec_title)}</h1>"
             f"<p>Status: <b class='{record.status.value}'>{record.status.value}</b> "
             f"Duration: {record.duration_seconds:.2f}s</p>"
+            f"{suite_meta}"
             f"{_error(record.error)}"
             f"{''.join(step_html)}"
         ),
@@ -108,31 +128,40 @@ def _generate_spec_html(record: RunRecord) -> str:
 
 def _generate_summary_html(suite: SuiteRecord) -> str:
     rows = []
-    for record in suite.specs:
+    for index, record in enumerate(suite.specs, start=1):
         link_dir = Path(record.report_dir).name if record.report_dir else record.spec_id
         link = f"{html_mod.escape(link_dir)}/report.html"
+        order = record.suite_order or index
         rows.append(
             "<tr>"
+            f"<td>{order}</td>"
             f"<td><a href='{link}'>{html_mod.escape(record.spec_id)}</a></td>"
             f"<td>{html_mod.escape(record.spec_title)}</td>"
             f"<td class='{record.status.value}'>{record.status.value}</td>"
             f"<td>{record.duration_seconds:.2f}s</td>"
+            f"<td>{html_mod.escape(record.spec_source or '-')}</td>"
+            f"<td>{html_mod.escape(record.error or '-')}</td>"
             "</tr>"
         )
     suite_title = suite.suite_name or suite.suite_id or "Web Spec Summary"
-    meta = ""
-    if suite.suite_id or suite.module or suite.tags:
-        meta = (
-            f"<p>Suite: {html_mod.escape(suite.suite_id)} "
-            f"Module: {html_mod.escape(suite.module)} "
-            f"Tags: {html_mod.escape(','.join(suite.tags))}</p>"
-        )
+    meta = (
+        "<section class='meta'>"
+        f"<p>Suite: {html_mod.escape(suite.suite_id)} "
+        f"Module: {html_mod.escape(suite.module)} "
+        f"Tags: {html_mod.escape(','.join(suite.tags))}</p>"
+        f"<p>Source: {html_mod.escape(suite.source or '-')} "
+        f"Fast fail: {suite.fast_fail} Timeout: {suite.timeout or '-'}s "
+        f"Duration: {suite.duration_seconds:.2f}s</p>"
+        f"{_error(suite.error)}"
+        "</section>"
+    )
     body = (
         f"<h1>{html_mod.escape(suite_title)}</h1>"
         f"{meta}"
         f"<p>Total: {suite.total}, Passed: {suite.passed}, Failed: {suite.failed}, "
         f"Blocked: {suite.blocked}, Cancelled: {suite.cancelled}</p>"
-        "<table><thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Duration</th></tr></thead>"
+        "<table><thead><tr><th>Order</th><th>ID</th><th>Title</th><th>Status</th>"
+        "<th>Duration</th><th>Source</th><th>Error</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table>"
     )
     return _HTML_TEMPLATE.format(

@@ -13,9 +13,10 @@ import yaml
 
 from web_spec.kind import is_config_file, is_suite_file
 from web_spec.loader import SpecValidationError, load_spec
+from web_spec.suite import load_suite
 
 
-INDEX_VERSION = 2
+INDEX_VERSION = 6
 
 
 class WebSpecIndex:
@@ -36,7 +37,42 @@ class WebSpecIndex:
     def rebuild(self) -> list[dict[str, Any]]:
         specs = []
         for spec_file in sorted(self.spec_dir.rglob("*.y*ml")):
-            if spec_file.name == "index.yaml" or is_suite_file(spec_file) or is_config_file(spec_file):
+            if spec_file.name == "index.yaml" or is_config_file(spec_file):
+                continue
+            if is_suite_file(spec_file):
+                try:
+                    suite = load_suite(spec_file)
+                except (FileNotFoundError, SpecValidationError):
+                    continue
+                specs.append({
+                    "id": suite.id,
+                    "file": str(spec_file.relative_to(self.spec_dir)),
+                    "name": suite.name,
+                    "description": "",
+                    "module": suite.module,
+                    "feature": "",
+                    "tags": suite.tags,
+                    "priority": "1",
+                    "kind": "suite",
+                    "spec_count": len(suite.source_specs),
+                    "specs": [
+                        {
+                            "id": spec.id,
+                            "file": str(Path(spec.source).relative_to(self.spec_dir)) if spec.source else "",
+                            "name": spec.title,
+                            "module": spec.module,
+                            "feature": spec.feature,
+                            "tags": spec.tags,
+                        }
+                        for spec in suite.source_specs
+                    ],
+                    "source_files": [
+                        str(Path(spec.source).relative_to(self.spec_dir))
+                        for spec in suite.source_specs
+                        if spec.source
+                    ],
+                    "single_case": suite.single_case,
+                })
                 continue
             try:
                 spec = load_spec(spec_file)
@@ -51,6 +87,7 @@ class WebSpecIndex:
                 "feature": spec.feature,
                 "tags": spec.tags,
                 "priority": spec.priority,
+                "kind": "case",
             })
 
         data = {

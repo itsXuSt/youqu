@@ -79,12 +79,15 @@ class WebSpecRunner:
         return suite
 
     def run_suite(self, suite_spec: SuiteSpec, report_dir: str | Path | None = None) -> SuiteRecord:
-        """Run an explicit suite.yaml through one shared browser context."""
+        """Run an explicit suite.yaml through one shared page."""
         suite = SuiteRecord(
             suite_id=suite_spec.id,
             suite_name=suite_spec.name,
             module=suite_spec.module,
             tags=suite_spec.tags,
+            source=suite_spec.source,
+            fast_fail=suite_spec.fast_fail,
+            timeout=suite_spec.timeout,
         )
         out_dir = Path(report_dir or _timestamp_dir(self.config.report_dir))
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -95,12 +98,20 @@ class WebSpecRunner:
             total_specs=len(suite_spec.specs),
             report_dir=str(out_dir),
         )
+        page = None
         try:
             self._start_browser()
+            if self._context is None:
+                raise EnvironmentError("浏览器上下文未初始化")
             execution = self._default_execution()
+            page = self._context.new_page()
+            if suite_spec.specs:
+                page.goto(self._entry_url(suite_spec.specs[0]), wait_until="domcontentloaded")
+                self._wait_after_navigation(page)
+
             setup_failed = False
             if suite_spec.setup:
-                setup_error = self._run_lifecycle_actions(suite_spec.setup, execution)
+                setup_error = self._execute_lifecycle_actions(page, suite_spec.setup, execution)
                 if setup_error:
                     suite.error = f"suite setup failed: {setup_error}"
                     self._append_cancelled_records(suite, suite_spec.specs, out_dir, suite.error)
@@ -114,7 +125,16 @@ class WebSpecRunner:
                     reason = f"cancelled by suite timeout after {suite_spec.timeout}s"
                     self._append_cancelled_records(suite, suite_spec.specs[index - 1:], out_dir, reason)
                     break
-                record = self.run_spec(spec, out_dir, spec_index=index, total_specs=len(suite_spec.specs))
+                record = self._run_spec_on_page(
+                    page,
+                    spec,
+                    out_dir,
+                    spec_index=index,
+                    total_specs=len(suite_spec.specs),
+                    suite=suite,
+                    run_teardown=False,
+                    navigate=False,
+                )
                 suite.specs.append(record)
                 save_spec_report(record)
                 if suite_spec.fast_fail and record.status != RunStatus.PASSED:
@@ -124,13 +144,21 @@ class WebSpecRunner:
         except EnvironmentError as exc:
             suite.error = str(exc)
             # suite.specs 与 suite_spec.specs 按执行顺序一一对应；这里只补齐尚未产生记录的剩余 specs。
-            self._append_cancelled_records(suite, suite_spec.specs[len(suite.specs):], out_dir, str(exc), RunStatus.BLOCKED_ENV)
+            self._append_cancelled_records(
+                suite,
+                suite_spec.specs[len(suite.specs):],
+                out_dir,
+                str(exc),
+                RunStatus.BLOCKED_ENV,
+            )
         finally:
-            if suite_spec.teardown and self._context is not None:
+            if suite_spec.teardown and page is not None:
                 execution = self._default_execution()
-                teardown_error = self._run_lifecycle_teardown(suite_spec.teardown, execution)
+                teardown_error = self._run_lifecycle_teardown_on_page(page, suite_spec.teardown, execution)
                 if teardown_error and suite.error is None:
                     suite.error = f"suite teardown failed: {teardown_error}"
+            if page is not None:
+                page.close()
             self._stop_browser()
             suite.finalize()
             save_suite_summary(suite, out_dir)
@@ -155,9 +183,55 @@ class WebSpecRunner:
     ) -> RunRecord:
         own_browser = self._pw is None
         out_root = Path(report_root or _timestamp_dir(self.config.report_dir))
-        spec_dir = out_root / _safe_id(spec.id)
+        page = None
+        try:
+            if own_browser:
+                self._start_browser()
+            if self._context is None:
+                raise EnvironmentError("浏览器上下文未初始化")
+            page = self._context.new_page()
+            return self._run_spec_on_page(
+                page,
+                spec,
+                out_root,
+                spec_index=spec_index,
+                total_specs=total_specs,
+                run_teardown=True,
+                navigate=True,
+            )
+        finally:
+            if page is not None:
+                page.close()
+            if own_browser:
+                self._stop_browser()
+
+    def _run_spec_on_page(
+        self,
+        page: Any,
+        spec: TestSpec,
+        report_root: Path,
+        spec_index: int = 1,
+        total_specs: int = 1,
+        *,
+        suite: SuiteRecord | None = None,
+        run_teardown: bool = True,
+        navigate: bool = True,
+    ) -> RunRecord:
+        spec_dir = report_root / _safe_id(spec.id)
         spec_dir.mkdir(parents=True, exist_ok=True)
-        record = RunRecord(spec_id=spec.id, spec_title=spec.title, report_dir=str(spec_dir))
+        record = RunRecord(
+            spec_id=spec.id,
+            spec_title=spec.title,
+            report_dir=str(spec_dir),
+            spec_source=spec.source,
+        )
+        if suite is not None:
+            record.suite_id = suite.suite_id
+            record.suite_name = suite.suite_name
+            record.suite_module = suite.module
+            record.suite_tags = list(suite.tags)
+            record.suite_source = suite.source
+            record.suite_order = spec_index
         execution = spec.execution or self._default_execution()
         self._emit(
             "spec_start",
@@ -168,15 +242,10 @@ class WebSpecRunner:
             total_steps=len(spec.steps),
             report_dir=str(spec_dir),
         )
-        page = None
         try:
-            if own_browser:
-                self._start_browser()
-            if self._context is None:
-                raise EnvironmentError("浏览器上下文未初始化")
-            page = self._context.new_page()
-            page.goto(self._entry_url(spec), wait_until="domcontentloaded")
-            self._wait_after_navigation(page)
+            if navigate:
+                page.goto(self._entry_url(spec), wait_until="domcontentloaded")
+                self._wait_after_navigation(page)
 
             for action in spec.setup:
                 setup_result = action_executor.execute(page, action, execution)
@@ -202,11 +271,8 @@ class WebSpecRunner:
             record.status = RunStatus.FAILED_SCRIPT
             record.error = f"执行异常: {exc}"
         finally:
-            if page is not None:
+            if run_teardown:
                 self._run_teardown(page, spec, execution, record)
-                page.close()
-            if own_browser:
-                self._stop_browser()
             record.finalize()
             self._emit(
                 "spec_end",
@@ -389,21 +455,29 @@ class WebSpecRunner:
         try:
             page.goto(self._suite_entry_url(), wait_until="domcontentloaded")
             self._wait_after_navigation(page)
-            action_error = self._execute_lifecycle_actions(page, teardown.steps, execution)
-            if teardown.reset_page_state:
-                try:
-                    page.context.clear_cookies()
-                except Exception:
-                    pass
-            if teardown.restore_entry_page:
-                try:
-                    page.goto(self._suite_entry_url(), wait_until="domcontentloaded")
-                    self._wait_after_navigation(page)
-                except Exception:
-                    pass
-            return action_error
+            return self._run_lifecycle_teardown_on_page(page, teardown, execution)
         finally:
             page.close()
+
+    def _run_lifecycle_teardown_on_page(
+        self,
+        page: Any,
+        teardown: TeardownSpec,
+        execution: ExecutionSpec,
+    ) -> str | None:
+        action_error = self._execute_lifecycle_actions(page, teardown.steps, execution)
+        if teardown.reset_page_state:
+            try:
+                page.context.clear_cookies()
+            except Exception:
+                pass
+        if teardown.restore_entry_page:
+            try:
+                page.goto(self._suite_entry_url(), wait_until="domcontentloaded")
+                self._wait_after_navigation(page)
+            except Exception:
+                pass
+        return action_error
 
     def _execute_lifecycle_actions(self, page: Any, actions: list[Any], execution: ExecutionSpec) -> str | None:
         for action in actions:
@@ -420,13 +494,21 @@ class WebSpecRunner:
         reason: str,
         status: RunStatus = RunStatus.CANCELLED,
     ) -> None:
-        for spec in specs:
+        start_order = len(suite.specs)
+        for offset, spec in enumerate(specs, start=1):
             record = RunRecord(
                 spec_id=spec.id,
                 spec_title=spec.title,
                 status=status,
                 error=reason,
                 report_dir=str(out_dir / _safe_id(spec.id)),
+                suite_id=suite.suite_id,
+                suite_name=suite.suite_name,
+                suite_module=suite.module,
+                suite_tags=list(suite.tags),
+                suite_source=suite.source,
+                suite_order=start_order + offset,
+                spec_source=spec.source,
             )
             Path(record.report_dir).mkdir(parents=True, exist_ok=True)
             record.finalize()

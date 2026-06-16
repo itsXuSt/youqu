@@ -234,7 +234,7 @@ specs:
     assert "共 1 个 spec" in captured.out
 
 
-def test_web_spec_run_rejects_suite_file(tmp_path, capsys):
+def test_web_spec_run_accepts_suite_file(tmp_path, capsys):
     spec_path = tmp_path / "login.yaml"
     spec_path.write_text("""
 id: login
@@ -248,6 +248,7 @@ steps:
     suite_path = tmp_path / "smoke.suite.yaml"
     suite_path.write_text("""
 id: smoke
+name: 冒烟套件
 specs:
   - login.yaml
 """, encoding="utf-8")
@@ -262,12 +263,56 @@ specs:
         no_screenshot=False,
     )
 
-    with pytest.raises(SystemExit) as exc_info:
-        run(args)
+    run(args)
 
     captured = capsys.readouterr()
-    assert exc_info.value.code == 1
-    assert "youqu web-spec suite" in captured.err
+    assert "[DRY-RUN] suite smoke: 冒烟套件" in captured.out
+    assert "共 1 个 suite, 1 个 spec" in captured.out
+
+
+def test_web_spec_run_directory_runs_suites_and_independent_cases(tmp_path, capsys):
+    (tmp_path / "login.yaml").write_text("""
+id: login
+title: 登录测试
+steps:
+  - description: 检查
+    assertions:
+      - type: visible
+        locator: {strategy: text, value: 欢迎}
+""", encoding="utf-8")
+    (tmp_path / "profile.yaml").write_text("""
+id: profile
+title: 资料测试
+steps:
+  - description: 检查
+    assertions:
+      - type: visible
+        locator: {strategy: text, value: 资料}
+""", encoding="utf-8")
+    (tmp_path / "smoke.suite.yaml").write_text("""
+id: smoke
+name: 冒烟套件
+specs:
+  - login.yaml
+""", encoding="utf-8")
+
+    args = Namespace(
+        web_spec_command="run",
+        spec_path=str(tmp_path),
+        config=None,
+        headed=False,
+        report_dir=None,
+        dry_run=True,
+        no_screenshot=False,
+    )
+
+    run(args)
+
+    captured = capsys.readouterr()
+    assert "[DRY-RUN] suite smoke: 冒烟套件" in captured.out
+    assert "[DRY-RUN] profile: 资料测试" in captured.out
+    assert "[DRY-RUN] login: 登录测试" not in captured.out
+    assert "共 1 个 suite, 2 个 spec" in captured.out
 
 
 def test_web_spec_suite_rejects_case_file(tmp_path, capsys):
@@ -299,6 +344,97 @@ steps:
     captured = capsys.readouterr()
     assert exc_info.value.code == 1
     assert "youqu web-spec run" in captured.err
+
+
+def test_web_spec_list_includes_suite_files(tmp_path, capsys):
+    (tmp_path / "login.yaml").write_text("""
+id: login
+title: 登录测试
+module: 认证
+tags: [smoke]
+steps:
+  - description: 检查
+    assertions:
+      - type: visible
+        locator: {strategy: text, value: 欢迎}
+""", encoding="utf-8")
+    (tmp_path / "smoke.suite.yaml").write_text("""
+id: smoke
+name: 冒烟套件
+module: 认证
+tags: [smoke]
+specs:
+  - login.yaml
+""", encoding="utf-8")
+    args = Namespace(
+        web_spec_command="list",
+        spec_dir=str(tmp_path),
+        module="认证",
+        feature=None,
+        tag="smoke",
+    )
+
+    run(args)
+
+    captured = capsys.readouterr()
+    assert "Web specs: 1 suite(s), 1 case(s)" in captured.out
+    assert "▣ smoke  冒烟套件" in captured.out
+    assert "kind: suite" in captured.out
+    assert "└─ login  登录测试" in captured.out
+
+
+def test_web_spec_list_single_case_suite_hides_source_fragments(tmp_path, capsys):
+    spec_dir = tmp_path / "suite_parts"
+    spec_dir.mkdir()
+    (spec_dir / "login.yaml").write_text("""
+id: login
+title: 登录测试
+module: 认证
+tags: [suite-fragment]
+steps:
+  - description: 检查
+    assertions:
+      - type: visible
+        locator: {strategy: text, value: 欢迎}
+""", encoding="utf-8")
+    (spec_dir / "profile.yaml").write_text("""
+id: profile
+title: 资料测试
+module: 认证
+tags: [suite-fragment]
+steps:
+  - description: 检查
+    assertions:
+      - type: visible
+        locator: {strategy: text, value: 资料}
+""", encoding="utf-8")
+    (tmp_path / "flow.suite.yaml").write_text("""
+id: flow
+name: 合并流程
+module: 认证
+single_case: true
+specs:
+  - suite_parts/login.yaml
+  - suite_parts/profile.yaml
+""", encoding="utf-8")
+    args = Namespace(
+        web_spec_command="list",
+        spec_dir=str(tmp_path),
+        module=None,
+        feature=None,
+        tag=None,
+    )
+
+    run(args)
+
+    captured = capsys.readouterr()
+    assert "Web specs: 1 suite(s), 2 case(s)" in captured.out
+    assert "▣ flow  合并流程" in captured.out
+    assert "mode: single case, merged from 2 file(s)" in captured.out
+    assert "├─ login  登录测试" in captured.out
+    assert "└─ profile  资料测试" in captured.out
+    assert "▣ standalone cases" not in captured.out
+
 
 
 def test_web_spec_list_filters_specs(tmp_path, capsys):
@@ -338,6 +474,7 @@ steps:
     run(args)
 
     captured = capsys.readouterr()
-    assert "Specs: 1" in captured.out
+    assert "Web specs: 0 suite(s), 1 case(s)" in captured.out
+    assert "standalone cases" in captured.out
     assert "login" in captured.out
     assert "profile" not in captured.out

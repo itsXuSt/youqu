@@ -57,7 +57,32 @@ teardown:
     assert suite.fast_fail is True
     assert len(suite.setup) == 1
     assert [spec.id for spec in suite.specs] == ["login", "chat"]
+    assert [spec.id for spec in suite.source_specs] == ["login", "chat"]
     assert suite.teardown.steps[0].key == "Escape"
+
+
+def test_load_suite_single_case_keeps_source_specs(tmp_path):
+    spec_dir = tmp_path / "specs"
+    spec_dir.mkdir()
+    _write_spec(spec_dir / "login.yaml", "登录测试")
+    _write_spec(spec_dir / "chat.yaml", "聊天测试")
+    suite_path = tmp_path / "smoke.suite.yaml"
+    suite_path.write_text("""
+id: smoke
+name: 冒烟套件
+single_case: true
+specs:
+  - specs/login.yaml
+  - specs/chat.yaml
+""", encoding="utf-8")
+
+    suite = load_suite(suite_path)
+
+    assert suite.single_case is True
+    assert [spec.id for spec in suite.source_specs] == ["login", "chat"]
+    assert [spec.id for spec in suite.specs] == ["smoke"]
+    assert suite.specs[0].source == str(suite_path)
+
 
 
 def test_load_suite_requires_suite_naming(tmp_path):

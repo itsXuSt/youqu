@@ -436,7 +436,9 @@ youqu web-spec suite examples/web_spec/smoke.suite.yaml --config examples/web_sp
 youqu web-spec suite examples/web_spec/smoke.suite.yaml --config examples/web_spec/web_spec.yaml
 ```
 
-suite 文件必须命名为 `suite.yaml`、`suite.yml`、`*.suite.yaml` 或 `*.suite.yml`，顶层使用 `specs` 声明 case 列表；普通 case 顶层使用 `steps`。`run/list/index` 只处理 case，目录中出现 suite 不会被重复执行；`suite` 命令只执行 `specs` 中显式列出的 case。
+suite 文件必须命名为 `suite.yaml`、`suite.yml`、`*.suite.yaml` 或 `*.suite.yml`，顶层使用 `specs` 声明 case 列表；普通 case 顶层使用 `steps`。`run` 执行当前路径下的 suite 和未被 suite 引用的独立 case，避免重复执行；`list/index` 会同时展示 case 和 suite；`suite` 命令用于只执行单个 suite 文件。
+
+suite 用于把一个大流程拆成多个小 case，执行时会在同一个浏览器上下文、同一个 page 上按 `specs` 顺序接续运行。suite setup 会在共享 page 上执行；suite 开始时默认进入第一个 spec 的 `entry_url` / `entry_page`，后续 spec 不会在 case 边界自动重新导航。每个 spec 的入口字段仍用于单独运行该 spec，若 suite 中间需要跳转，请在 spec setup 或 steps 中显式声明。suite 内默认跳过单个 spec 的 teardown，最终清理由 suite-level `teardown` 负责，避免中间 case 清理 cookie 或恢复入口导致状态断裂。报告会记录 suite 元数据、case 顺序、source、fast_fail、timeout 和 suite 错误。
 
 ```yaml
 id: web-spec-smoke

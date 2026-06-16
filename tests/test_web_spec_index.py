@@ -49,6 +49,50 @@ def test_rebuild_creates_index_and_tracks_subdirs(tmp_path):
     assert (spec_dir / "index.yaml").exists()
     files = {spec["file"] for spec in specs}
     assert files == {"login.yaml", "settings/profile.yaml"}
+    assert {spec["kind"] for spec in specs} == {"case"}
+
+
+def test_rebuild_indexes_suite_files(tmp_path):
+    spec_dir = _make_spec_dir(tmp_path)
+    (spec_dir / "smoke.suite.yaml").write_text("""
+id: smoke
+name: 冒烟套件
+module: 认证
+tags: [smoke]
+specs:
+  - login.yaml
+""", encoding="utf-8")
+    idx = WebSpecIndex(spec_dir)
+
+    specs = idx.rebuild()
+    suite = next(spec for spec in specs if spec["kind"] == "suite")
+
+    assert len(specs) == 3
+    assert suite["id"] == "smoke"
+    assert suite["file"] == "smoke.suite.yaml"
+    assert suite["spec_count"] == 1
+
+
+def test_rebuild_single_case_suite_tracks_source_files(tmp_path):
+    spec_dir = _make_spec_dir(tmp_path)
+    (spec_dir / "smoke.suite.yaml").write_text("""
+id: smoke
+name: 冒烟套件
+single_case: true
+specs:
+  - login.yaml
+  - settings/profile.yaml
+""", encoding="utf-8")
+    idx = WebSpecIndex(spec_dir)
+
+    specs = idx.rebuild()
+    suite = next(spec for spec in specs if spec["kind"] == "suite")
+
+    assert suite["single_case"] is True
+    assert suite["spec_count"] == 2
+    assert [spec["file"] for spec in suite["specs"]] == ["login.yaml", "settings/profile.yaml"]
+    assert suite["source_files"] == ["login.yaml", "settings/profile.yaml"]
+
 
 
 def test_rebuild_skips_non_web_specs(tmp_path):

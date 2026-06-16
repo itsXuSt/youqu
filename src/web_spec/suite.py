@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 
 from web_spec.kind import WebSpecFileKind, detect_web_spec_kind, is_suite_file
 from web_spec.loader import SpecValidationError, load_spec
-from web_spec.models import ActionSpec, TeardownSpec, TestSpec
+from web_spec.models import ActionSpec, StepSpec, TeardownSpec, TestSpec
 
 
 class SuiteSpec(BaseModel):
@@ -34,8 +34,10 @@ class SuiteSpec(BaseModel):
     tags: list[str] = Field(default_factory=list)
     timeout: int | None = None
     fast_fail: bool = False
+    single_case: bool = False
     setup: list[ActionSpec] = Field(default_factory=list)
     specs: list[TestSpec] = Field(default_factory=list)
+    source_specs: list[TestSpec] = Field(default_factory=list)
     teardown: TeardownSpec | None = None
     source: str = ""
 
@@ -82,7 +84,9 @@ def _parse_suite(raw: dict[str, Any], suite_path: Path) -> SuiteSpec:
     specs = data.get("specs")
     if not isinstance(specs, list) or not specs:
         raise SpecValidationError(f"[{suite_path}] specs 必须是非空列表")
-    data["specs"] = [_load_suite_spec(item, suite_path) for item in specs]
+    loaded_specs = [_load_suite_spec(item, suite_path) for item in specs]
+    data["source_specs"] = loaded_specs
+    data["specs"] = [_merge_suite_specs(data, loaded_specs, suite_path)] if data.get("single_case") else loaded_specs
 
     teardown = data.get("teardown")
     if isinstance(teardown, list):
@@ -92,6 +96,33 @@ def _parse_suite(raw: dict[str, Any], suite_path: Path) -> SuiteSpec:
         return SuiteSpec.model_validate(data)
     except ValidationError as exc:
         raise SpecValidationError(f"[{suite_path}] suite 校验失败: {exc}") from exc
+
+
+def _merge_suite_specs(suite_data: dict[str, Any], specs: list[TestSpec], suite_path: Path) -> TestSpec:
+    steps: list[StepSpec] = []
+    for spec in specs:
+        steps.extend(spec.steps)
+    for index, step in enumerate(steps, start=1):
+        step.order = index
+
+    base = specs[0]
+    raw = {
+        "id": suite_data.get("id") or _default_suite_id(suite_path),
+        "title": suite_data.get("name") or base.title,
+        "module": suite_data.get("module") or base.module,
+        "tags": suite_data.get("tags", []) or base.tags,
+        "priority": base.priority,
+        "given": base.given,
+        "entry_page": base.entry_page,
+        "entry_url": base.entry_url,
+        "setup": base.setup,
+        "steps": steps,
+        "teardown": base.teardown,
+        "execution": base.execution,
+        "source": str(suite_path),
+        "description": suite_data.get("description", ""),
+    }
+    return TestSpec.model_validate(raw)
 
 
 def _load_suite_spec(item: Any, suite_path: Path) -> TestSpec:
