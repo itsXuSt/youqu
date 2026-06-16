@@ -11,7 +11,7 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
-from web_spec.kind import WebSpecFileKind, detect_web_spec_kind, is_config_file, is_suite_file
+from web_spec.kind import WebSpecFileKind, detect_web_spec_kind, is_config_file, is_legacy_suite_file, is_suite_file
 from web_spec.models import StepSpec, TestSpec
 
 
@@ -56,7 +56,13 @@ def load_spec_dir(dir_path: str | Path) -> list[TestSpec]:
     specs = []
     files = sorted(
         p for p in root.rglob("*.y*ml")
-        if p.is_file() and p.name != "index.yaml" and not is_suite_file(p) and not is_config_file(p)
+        if (
+            p.is_file()
+            and p.name != "index.yaml"
+            and not is_suite_file(p)
+            and not is_legacy_suite_file(p)
+            and not is_config_file(p)
+        )
     )
     for file_path in files:
         specs.append(load_spec(file_path))

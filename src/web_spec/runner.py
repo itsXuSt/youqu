@@ -259,9 +259,9 @@ class WebSpecRunner:
                 step_record = self._execute_step(page, spec, step, execution, spec_dir, step_index, len(spec.steps))
                 record.steps.append(step_record)
                 if step_record.status == StepStatus.FAILED:
-                    for skipped in spec.steps[step_index:]:
+                    for skipped_order, skipped in enumerate(spec.steps[step_index:], start=step_index + 1):
                         record.steps.append(StepRecord(
-                            order=skipped.order,
+                            order=skipped_order,
                             description=skipped.description,
                             status=StepStatus.SKIPPED,
                         ))
@@ -297,20 +297,21 @@ class WebSpecRunner:
         total_steps: int = 1,
     ) -> StepRecord:
         start = time.monotonic()
-        step_record = StepRecord(order=step.order, description=step.description)
+        order = step_index
+        step_record = StepRecord(order=order, description=step.description)
         self._emit(
             "step_start",
             spec_id=spec.id,
             step_index=step_index,
             total_steps=total_steps,
-            order=step.order,
+            order=order,
             description=step.description,
         )
         for action_index, action in enumerate(step.actions, start=1):
             self._emit(
                 "action_start",
                 spec_id=spec.id,
-                step_order=step.order,
+                step_order=order,
                 action_index=action_index,
                 total_actions=len(step.actions),
                 action_type=action.type.value,
@@ -327,7 +328,7 @@ class WebSpecRunner:
             self._emit(
                 "action_end",
                 spec_id=spec.id,
-                step_order=step.order,
+                step_order=order,
                 action_index=action_index,
                 action_type=result.type,
                 success=result.success,
@@ -344,7 +345,7 @@ class WebSpecRunner:
                 self._emit(
                     "assertion_start",
                     spec_id=spec.id,
-                    step_order=step.order,
+                    step_order=order,
                     assertion_index=assertion_index,
                     total_assertions=len(step.assertions),
                     assertion_type=assertion.type.value,
@@ -365,7 +366,7 @@ class WebSpecRunner:
                 self._emit(
                     "assertion_end",
                     spec_id=spec.id,
-                    step_order=step.order,
+                    step_order=order,
                     assertion_index=assertion_index,
                     assertion_type=result.type,
                     success=result.success,
@@ -382,10 +383,10 @@ class WebSpecRunner:
 
         if self.config.screenshot_on_step:
             try:
-                screenshot_path = spec_dir / f"step_{step.order}.png"
+                screenshot_path = spec_dir / f"step_{order}.png"
                 page.screenshot(path=str(screenshot_path))
                 step_record.screenshot_path = str(screenshot_path)
-                self._emit("screenshot_saved", spec_id=spec.id, step_order=step.order, path=str(screenshot_path))
+                self._emit("screenshot_saved", spec_id=spec.id, step_order=order, path=str(screenshot_path))
             except Exception:
                 pass
         step_record.duration_ms = int((time.monotonic() - start) * 1000)
@@ -394,7 +395,7 @@ class WebSpecRunner:
             spec_id=spec.id,
             step_index=step_index,
             total_steps=total_steps,
-            order=step.order,
+            order=order,
             description=step.description,
             status=step_record.status.value,
             duration_ms=step_record.duration_ms,

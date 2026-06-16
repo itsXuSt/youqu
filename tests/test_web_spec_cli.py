@@ -155,12 +155,14 @@ steps:
       - type: visible
         locator: {strategy: text, value: 欢迎}
 """, encoding="utf-8")
-    suite_path = tmp_path / "smoke.suite.yaml"
+    suite_dir = tmp_path / "smoke"
+    suite_dir.mkdir()
+    suite_path = suite_dir / "suite.yaml"
     suite_path.write_text("""
 id: smoke
 name: 冒烟套件
 specs:
-  - login.yaml
+  - ../login.yaml
 """, encoding="utf-8")
     (tmp_path / "web_spec.yaml").write_text("""
 base_url: http://example.test
@@ -207,12 +209,14 @@ steps:
       - type: visible
         locator: {strategy: text, value: 欢迎}
 """, encoding="utf-8")
-    suite_path = tmp_path / "smoke.suite.yaml"
+    suite_dir = tmp_path / "smoke"
+    suite_dir.mkdir()
+    suite_path = suite_dir / "suite.yaml"
     suite_path.write_text("""
 id: smoke
 name: 冒烟套件
 specs:
-  - login.yaml
+  - ../login.yaml
 """, encoding="utf-8")
 
     args = Namespace(
@@ -253,14 +257,16 @@ steps:
       - type: visible
         locator: {strategy: text, value: 资料}
 """, encoding="utf-8")
-    suite_path = tmp_path / "flow.suite.yaml"
+    suite_dir = tmp_path / "flow"
+    suite_dir.mkdir()
+    suite_path = suite_dir / "suite.yaml"
     suite_path.write_text("""
 id: flow
 name: 合并流程
 single_case: true
 specs:
-  - login.yaml
-  - profile.yaml
+  - ../login.yaml
+  - ../profile.yaml
 """, encoding="utf-8")
 
     args = Namespace(
@@ -283,7 +289,7 @@ specs:
 
 
 
-def test_web_spec_run_accepts_suite_file(tmp_path, capsys):
+def test_web_spec_run_accepts_suite_descriptor_file(tmp_path, capsys):
     spec_path = tmp_path / "login.yaml"
     spec_path.write_text("""
 id: login
@@ -294,12 +300,14 @@ steps:
       - type: visible
         locator: {strategy: text, value: 欢迎}
 """, encoding="utf-8")
-    suite_path = tmp_path / "smoke.suite.yaml"
+    suite_dir = tmp_path / "smoke"
+    suite_dir.mkdir()
+    suite_path = suite_dir / "suite.yaml"
     suite_path.write_text("""
 id: smoke
 name: 冒烟套件
 specs:
-  - login.yaml
+  - ../login.yaml
 """, encoding="utf-8")
 
     args = Namespace(
@@ -338,11 +346,13 @@ steps:
       - type: visible
         locator: {strategy: text, value: 资料}
 """, encoding="utf-8")
-    (tmp_path / "smoke.suite.yaml").write_text("""
+    suite_dir = tmp_path / "smoke"
+    suite_dir.mkdir()
+    (suite_dir / "suite.yaml").write_text("""
 id: smoke
 name: 冒烟套件
 specs:
-  - login.yaml
+  - ../login.yaml
 """, encoding="utf-8")
 
     args = Namespace(
@@ -383,11 +393,13 @@ steps:
       - type: visible
         locator: {strategy: text, value: 资料}
 """, encoding="utf-8")
-    (tmp_path / "smoke.suite.yaml").write_text("""
+    suite_dir = tmp_path / "smoke"
+    suite_dir.mkdir()
+    (suite_dir / "suite.yaml").write_text("""
 id: smoke
 name: 冒烟套件
 specs:
-  - login.yaml
+  - ../login.yaml
 """, encoding="utf-8")
 
     class FakeRunner:
@@ -503,13 +515,15 @@ steps:
       - type: visible
         locator: {strategy: text, value: 欢迎}
 """, encoding="utf-8")
-    (tmp_path / "smoke.suite.yaml").write_text("""
+    suite_dir = tmp_path / "smoke"
+    suite_dir.mkdir()
+    (suite_dir / "suite.yaml").write_text("""
 id: smoke
 name: 冒烟套件
 module: 认证
 tags: [smoke]
 specs:
-  - login.yaml
+  - ../login.yaml
 """, encoding="utf-8")
     args = Namespace(
         web_spec_command="list",
@@ -529,9 +543,9 @@ specs:
 
 
 def test_web_spec_list_single_case_suite_hides_source_fragments(tmp_path, capsys):
-    spec_dir = tmp_path / "suite_parts"
-    spec_dir.mkdir()
-    (spec_dir / "login.yaml").write_text("""
+    suite_dir = tmp_path / "flow"
+    suite_dir.mkdir()
+    (suite_dir / "login.yaml").write_text("""
 id: login
 title: 登录测试
 module: 认证
@@ -542,7 +556,7 @@ steps:
       - type: visible
         locator: {strategy: text, value: 欢迎}
 """, encoding="utf-8")
-    (spec_dir / "profile.yaml").write_text("""
+    (suite_dir / "profile.yaml").write_text("""
 id: profile
 title: 资料测试
 module: 认证
@@ -553,14 +567,14 @@ steps:
       - type: visible
         locator: {strategy: text, value: 资料}
 """, encoding="utf-8")
-    (tmp_path / "flow.suite.yaml").write_text("""
+    (suite_dir / "suite.yaml").write_text("""
 id: flow
 name: 合并流程
 module: 认证
 single_case: true
 specs:
-  - suite_parts/login.yaml
-  - suite_parts/profile.yaml
+  - login.yaml
+  - profile.yaml
 """, encoding="utf-8")
     args = Namespace(
         web_spec_command="list",

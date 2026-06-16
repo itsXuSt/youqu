@@ -20,9 +20,25 @@ class WebSpecFileKind(str, Enum):
 
 
 def is_suite_file(path: str | Path) -> bool:
-    """Return whether a YAML file name follows the suite naming convention."""
-    name = Path(path).name
-    return name in {"suite.yaml", "suite.yml"} or name.endswith((".suite.yaml", ".suite.yml"))
+    """Return whether a YAML file is the suite descriptor in a suite directory."""
+    return Path(path).name in {"suite.yaml", "suite.yml"}
+
+
+def find_suite_file(path: str | Path) -> Path | None:
+    """Return the suite descriptor under a directory, if present."""
+    root = Path(path)
+    if root.is_file():
+        return root if is_suite_file(root) else None
+    for name in ("suite.yaml", "suite.yml"):
+        candidate = root / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def is_legacy_suite_file(path: str | Path) -> bool:
+    """Return whether a YAML file uses the removed external suite naming."""
+    return Path(path).name.endswith((".suite.yaml", ".suite.yml"))
 
 
 def is_config_file(path: str | Path) -> bool:

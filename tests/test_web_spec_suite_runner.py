@@ -5,7 +5,7 @@
 
 from web_spec.config import WebSpecConfig
 from web_spec.models import TestSpec
-from web_spec.result import RunRecord, RunStatus, StepRecord
+from web_spec.result import RunRecord, RunStatus, StepRecord, StepStatus
 from web_spec.runner import WebSpecRunner
 from web_spec.suite import SuiteSpec
 
@@ -71,7 +71,7 @@ def test_run_suite_uses_one_shared_page_for_all_specs(tmp_path, monkeypatch):
 
     def fake_execute_step(page, spec, step, execution, spec_dir, step_index=1, total_steps=1):
         used_pages.append((spec.id, page))
-        return StepRecord(order=step.order, description=step.description)
+        return StepRecord(order=step_index, description=step.description)
 
     monkeypatch.setattr(runner, "_execute_step", fake_execute_step)
     suite_spec = SuiteSpec(id="suite", name="Suite", specs=[_spec("first"), _spec("second")])
@@ -96,7 +96,7 @@ def test_run_suite_navigates_only_once_at_start(tmp_path, monkeypatch):
         runner,
         "_execute_step",
         lambda page, spec, step, execution, spec_dir, step_index=1, total_steps=1: StepRecord(
-            order=step.order,
+            order=step_index,
             description=step.description,
         ),
     )
@@ -121,7 +121,7 @@ def test_run_suite_skips_spec_teardown_until_suite_teardown(tmp_path, monkeypatc
         runner,
         "_execute_step",
         lambda page, spec, step, execution, spec_dir, step_index=1, total_steps=1: StepRecord(
-            order=step.order,
+            order=step_index,
             description=step.description,
         ),
     )
@@ -151,7 +151,7 @@ def test_run_suite_setup_uses_shared_page(tmp_path, monkeypatch):
 
     def fake_execute_step(page, spec, step, execution, spec_dir, step_index=1, total_steps=1):
         step_pages.append(page)
-        return StepRecord(order=step.order, description=step.description)
+        return StepRecord(order=step_index, description=step.description)
 
     monkeypatch.setattr(runner, "_execute_lifecycle_actions", fake_lifecycle)
     monkeypatch.setattr(runner, "_execute_step", fake_execute_step)
@@ -178,7 +178,7 @@ def test_run_suite_single_case_reports_source_specs(tmp_path, monkeypatch):
 
     def fake_execute_step(page, spec, step, execution, spec_dir, step_index=1, total_steps=1):
         executed.append((spec.id, page, spec_dir.name))
-        return StepRecord(order=step.order, description=step.description)
+        return StepRecord(order=step_index, description=step.description)
 
     monkeypatch.setattr(runner, "_execute_step", fake_execute_step)
     suite_spec = SuiteSpec(
@@ -200,6 +200,59 @@ def test_run_suite_single_case_reports_source_specs(tmp_path, monkeypatch):
     assert executed[0][2] == "first"
     assert executed[1][2] == "second"
 
+
+
+def test_run_spec_generates_step_order_from_list_position(tmp_path, monkeypatch):
+    runner = WebSpecRunner(WebSpecConfig(base_url="http://example.test", report_dir=str(tmp_path)))
+    context = FakeContext()
+    runner._context = context
+    monkeypatch.setattr(runner, "_start_browser", lambda: None)
+    monkeypatch.setattr(runner, "_stop_browser", lambda: None)
+    monkeypatch.setattr(
+        runner,
+        "_execute_step",
+        lambda page, spec, step, execution, spec_dir, step_index=1, total_steps=1: StepRecord(
+            order=step_index,
+            description=step.description,
+        ),
+    )
+    spec = _spec(
+        "ordered",
+        steps=[
+            {"order": 20, "description": "第一步", "assertions": [{"type": "visible", "locator": {"strategy": "text", "value": "1"}}]},
+            {"order": 10, "description": "第二步", "assertions": [{"type": "visible", "locator": {"strategy": "text", "value": "2"}}]},
+        ],
+    )
+
+    record = runner.run_spec(spec, report_root=tmp_path)
+
+    assert [step.order for step in record.steps] == [1, 2]
+
+
+def test_run_spec_generates_skipped_step_order(tmp_path, monkeypatch):
+    runner = WebSpecRunner(WebSpecConfig(base_url="http://example.test", report_dir=str(tmp_path)))
+    context = FakeContext()
+    runner._context = context
+    monkeypatch.setattr(runner, "_start_browser", lambda: None)
+    monkeypatch.setattr(runner, "_stop_browser", lambda: None)
+
+    def fake_execute_step(page, spec, step, execution, spec_dir, step_index=1, total_steps=1):
+        return StepRecord(order=step_index, description=step.description, status=StepStatus.FAILED)
+
+    monkeypatch.setattr(runner, "_execute_step", fake_execute_step)
+    spec = _spec(
+        "skipped",
+        steps=[
+            {"order": 30, "description": "失败", "assertions": [{"type": "visible", "locator": {"strategy": "text", "value": "1"}}]},
+            {"order": 20, "description": "跳过 1", "assertions": [{"type": "visible", "locator": {"strategy": "text", "value": "2"}}]},
+            {"order": 10, "description": "跳过 2", "assertions": [{"type": "visible", "locator": {"strategy": "text", "value": "3"}}]},
+        ],
+    )
+
+    record = runner.run_spec(spec, report_root=tmp_path)
+
+    assert [step.order for step in record.steps] == [1, 2, 3]
+    assert [step.status for step in record.steps] == [StepStatus.FAILED, StepStatus.SKIPPED, StepStatus.SKIPPED]
 
 
 def test_run_suite_fast_fail_marks_remaining_specs_cancelled(tmp_path, monkeypatch):
@@ -307,7 +360,7 @@ def test_run_suite_teardown_resets_page_state(tmp_path, monkeypatch):
         runner,
         "_execute_step",
         lambda page, spec, step, execution, spec_dir, step_index=1, total_steps=1: StepRecord(
-            order=step.order,
+            order=step_index,
             description=step.description,
         ),
     )

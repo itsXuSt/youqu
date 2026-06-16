@@ -33,7 +33,7 @@ def test_save_spec_report_includes_suite_metadata(tmp_path):
         suite_name="冒烟套件",
         suite_module="认证",
         suite_tags=["smoke"],
-        suite_source="smoke.suite.yaml",
+        suite_source="smoke/suite.yaml",
         suite_order=2,
         spec_source="login.yaml",
     )
@@ -45,7 +45,7 @@ def test_save_spec_report_includes_suite_metadata(tmp_path):
     assert data["suite_id"] == "smoke"
     assert data["suite_name"] == "冒烟套件"
     assert data["suite_order"] == 2
-    assert data["suite_source"] == "smoke.suite.yaml"
+    assert data["suite_source"] == "smoke/suite.yaml"
     assert data["spec_source"] == "login.yaml"
     html = (report_dir / "report.html").read_text(encoding="utf-8")
     assert "冒烟套件" in html
@@ -58,7 +58,7 @@ def test_save_suite_summary(tmp_path):
         suite_name="冒烟套件",
         module="认证",
         tags=["smoke"],
-        source="smoke.suite.yaml",
+        source="smoke/suite.yaml",
         fast_fail=True,
         timeout=600,
     )
@@ -81,7 +81,7 @@ def test_save_suite_summary(tmp_path):
     data = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     assert data["suite_id"] == "smoke"
     assert data["suite_name"] == "冒烟套件"
-    assert data["source"] == "smoke.suite.yaml"
+    assert data["source"] == "smoke/suite.yaml"
     assert data["fast_fail"] is True
     assert data["timeout"] == 600
     assert data["error"] == "suite teardown failed"
@@ -91,7 +91,7 @@ def test_save_suite_summary(tmp_path):
     assert data["passed"] == 1
     html = (tmp_path / "summary.html").read_text(encoding="utf-8")
     assert "Fast fail: True" in html
-    assert "smoke.suite.yaml" in html
+    assert "smoke/suite.yaml" in html
     assert "suite teardown failed" in html
     assert "smoke 冒烟套件" in html
     assert "login.yaml" in html

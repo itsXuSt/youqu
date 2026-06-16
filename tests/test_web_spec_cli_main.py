@@ -20,19 +20,21 @@ steps:
       - type: visible
         locator: {strategy: text, value: 欢迎}
 """, encoding="utf-8")
-    suite_path = tmp_path / "smoke.suite.yaml"
+    suite_dir = tmp_path / "smoke"
+    suite_dir.mkdir()
+    suite_path = suite_dir / "suite.yaml"
     suite_path.write_text("""
 id: smoke
 name: 冒烟套件
 specs:
-  - login.yaml
+  - ../login.yaml
 """, encoding="utf-8")
 
     project_parent = Path(__file__).resolve().parents[2]
     env = os.environ.copy()
     env["PYTHONPATH"] = f"{project_parent / 'youqu' / 'src'}:{project_parent}"
     result = subprocess.run(
-        [sys.executable, "-m", "youqu.cli.main", "web-spec", "suite", str(suite_path), "--dry-run"],
+        [sys.executable, "-m", "youqu.cli.main", "web-spec", "suite", str(suite_dir), "--dry-run"],
         cwd=project_parent,
         text=True,
         capture_output=True,

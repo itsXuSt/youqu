@@ -132,11 +132,12 @@ steps:
       - type: visible
         locator: {strategy: text, value: 欢迎, exact: true}
 """, encoding="utf-8")
-    suite_path = tmp_path / "smoke.suite.yaml"
-    suite_path.write_text("""
+    suite_dir = tmp_path / "smoke"
+    suite_dir.mkdir()
+    (suite_dir / "suite.yaml").write_text("""
 id: smoke
 specs:
-  - login.yaml
+  - ../login.yaml
 """, encoding="utf-8")
 
     report = check_specs(tmp_path)
@@ -146,7 +147,7 @@ specs:
     assert report.errors == 0
 
 
-def test_check_specs_reports_suite_naming_error(tmp_path):
+def test_check_specs_reports_external_suite_file_error(tmp_path):
     spec_path = tmp_path / "login.yaml"
     spec_path.write_text("""
 id: login
@@ -157,7 +158,7 @@ steps:
       - type: visible
         locator: {strategy: text, value: 欢迎, exact: true}
 """, encoding="utf-8")
-    suite_path = tmp_path / "smoke.yaml"
+    suite_path = tmp_path / "smoke.suite.yaml"
     suite_path.write_text("""
 id: smoke
 specs:
@@ -168,10 +169,13 @@ specs:
 
     assert report.errors == 1
     assert "suite_naming" in {issue.code for issue in report.issues}
+    assert "外部 suite 文件不再支持" in report.issues[0].message
 
 
-def test_check_specs_reports_suite_naming_and_schema_errors(tmp_path):
-    suite_path = tmp_path / "smoke.yaml"
+def test_check_specs_reports_suite_schema_errors(tmp_path):
+    suite_dir = tmp_path / "smoke"
+    suite_dir.mkdir()
+    suite_path = suite_dir / "suite.yaml"
     suite_path.write_text("""
 id: smoke
 specs:
@@ -181,8 +185,7 @@ specs:
     report = check_specs(suite_path)
     codes = {issue.code for issue in report.issues}
 
-    assert report.errors == 2
-    assert "suite_naming" in codes
+    assert report.errors == 1
     assert "suite_schema" in codes
 
 

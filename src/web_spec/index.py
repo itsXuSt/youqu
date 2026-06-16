@@ -11,12 +11,12 @@ from typing import Any
 
 import yaml
 
-from web_spec.kind import is_config_file, is_suite_file
+from web_spec.kind import is_config_file, is_legacy_suite_file, is_suite_file
 from web_spec.loader import SpecValidationError, load_spec
 from web_spec.suite import load_suite
 
 
-INDEX_VERSION = 6
+INDEX_VERSION = 7
 
 
 class WebSpecIndex:
@@ -37,7 +37,7 @@ class WebSpecIndex:
     def rebuild(self) -> list[dict[str, Any]]:
         specs = []
         for spec_file in sorted(self.spec_dir.rglob("*.y*ml")):
-            if spec_file.name == "index.yaml" or is_config_file(spec_file):
+            if spec_file.name == "index.yaml" or is_config_file(spec_file) or is_legacy_suite_file(spec_file):
                 continue
             if is_suite_file(spec_file):
                 try:
@@ -58,7 +58,7 @@ class WebSpecIndex:
                     "specs": [
                         {
                             "id": spec.id,
-                            "file": str(Path(spec.source).relative_to(self.spec_dir)) if spec.source else "",
+                            "file": _relative_source(spec.source, self.spec_dir) if spec.source else "",
                             "name": spec.title,
                             "module": spec.module,
                             "feature": spec.feature,
@@ -67,7 +67,7 @@ class WebSpecIndex:
                         for spec in suite.source_specs
                     ],
                     "source_files": [
-                        str(Path(spec.source).relative_to(self.spec_dir))
+                        _relative_source(spec.source, self.spec_dir)
                         for spec in suite.source_specs
                         if spec.source
                     ],
@@ -131,3 +131,7 @@ class WebSpecIndex:
             for tag in spec.get("tags", []) or []:
                 stats["tags"][tag] = stats["tags"].get(tag, 0) + 1
         return stats
+
+
+def _relative_source(source: str, root: Path) -> str:
+    return str(Path(source).resolve().relative_to(root.resolve()))

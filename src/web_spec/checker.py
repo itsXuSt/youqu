@@ -11,7 +11,7 @@ from typing import Any
 
 import yaml
 
-from web_spec.kind import WebSpecFileKind, detect_web_spec_kind, is_config_file, is_suite_file
+from web_spec.kind import WebSpecFileKind, detect_web_spec_kind, is_config_file, is_legacy_suite_file, is_suite_file
 from web_spec.loader import SpecValidationError, load_spec
 from web_spec.models import ActionSpec, ActionType, AssertionSpec, Locator, LocatorStrategy, TestSpec
 from web_spec.suite import load_suite
@@ -65,6 +65,16 @@ def check_specs(path: str | Path) -> CheckReport:
         if _is_non_spec_yaml(file_path):
             report.skipped += 1
             continue
+        if is_legacy_suite_file(file_path):
+            report.checked += 1
+            report.issues.append(CheckIssue(
+                severity="ERROR",
+                file=str(file_path),
+                code="suite_naming",
+                message="外部 suite 文件不再支持。",
+                suggestion="将 suite 改为文件夹组织，并在文件夹内创建 suite.yaml 或 suite.yml。",
+            ))
+            continue
         try:
             raw = _read_yaml_mapping(file_path)
         except SpecValidationError as exc:
@@ -103,7 +113,7 @@ def check_specs(path: str | Path) -> CheckReport:
                     file=str(file_path),
                     code="suite_naming",
                     message="suite 文件名不符合命名规范。",
-                    suggestion="使用 suite.yaml、suite.yml、*.suite.yaml 或 *.suite.yml。",
+                    suggestion="suite 必须以文件夹组织，并在文件夹内使用 suite.yaml 或 suite.yml。",
                 ))
             try:
                 load_suite(file_path, require_suite_name=has_valid_suite_name)
@@ -212,11 +222,11 @@ def _check_spec_quality(file_path: Path, spec: TestSpec) -> list[CheckIssue]:
     issues: list[CheckIssue] = []
     for action_index, action in enumerate(spec.setup, start=1):
         issues.extend(_check_action(file_path, action, 0, action_index, setup=True))
-    for step in spec.steps:
+    for step_index, step in enumerate(spec.steps, start=1):
         for action_index, action in enumerate(step.actions, start=1):
-            issues.extend(_check_action(file_path, action, step.order, action_index))
+            issues.extend(_check_action(file_path, action, step_index, action_index))
         for assertion_index, assertion in enumerate(step.assertions, start=1):
-            issues.extend(_check_assertion(file_path, assertion, step.order, assertion_index))
+            issues.extend(_check_assertion(file_path, assertion, step_index, assertion_index))
     return issues
 
 

@@ -11,7 +11,7 @@ from typing import Any
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from web_spec.kind import WebSpecFileKind, detect_web_spec_kind, is_suite_file
+from web_spec.kind import WebSpecFileKind, detect_web_spec_kind, find_suite_file, is_suite_file
 from web_spec.loader import SpecValidationError, load_spec
 from web_spec.models import ActionSpec, StepSpec, TeardownSpec, TestSpec
 
@@ -43,10 +43,15 @@ class SuiteSpec(BaseModel):
 
 
 def load_suite(path: str | Path, require_suite_name: bool = True) -> SuiteSpec:
-    """Load one suite YAML file and referenced Web specs."""
+    """Load one suite directory or its suite.yaml descriptor."""
     suite_path = Path(path)
     if not suite_path.exists():
-        raise FileNotFoundError(f"suite 文件不存在: {suite_path}")
+        raise FileNotFoundError(f"suite 路径不存在: {suite_path}")
+    if suite_path.is_dir():
+        descriptor = find_suite_file(suite_path)
+        if descriptor is None:
+            raise SpecValidationError(f"suite 文件夹必须包含 suite.yaml 或 suite.yml: {suite_path}")
+        suite_path = descriptor
     if not suite_path.is_file():
         raise SpecValidationError(f"suite 路径不是文件: {suite_path}")
 
@@ -69,7 +74,7 @@ def load_suite(path: str | Path, require_suite_name: bool = True) -> SuiteSpec:
         raise SpecValidationError(f"[{suite_path}] 缺少必填字段: specs")
     if require_suite_name and not is_suite_file(suite_path):
         raise SpecValidationError(
-            f"[{suite_path}] suite 文件名必须是 suite.yaml、suite.yml、*.suite.yaml 或 *.suite.yml"
+            f"[{suite_path}] suite 必须以文件夹组织，文件夹内必须包含 suite.yaml 或 suite.yml"
         )
 
     return _parse_suite(raw_data, suite_path)
@@ -102,8 +107,6 @@ def _merge_suite_specs(suite_data: dict[str, Any], specs: list[TestSpec], suite_
     steps: list[StepSpec] = []
     for spec in specs:
         steps.extend(spec.steps)
-    for index, step in enumerate(steps, start=1):
-        step.order = index
 
     base = specs[0]
     raw = {
@@ -140,8 +143,6 @@ def _load_suite_spec(item: Any, suite_path: Path) -> TestSpec:
 
 def _default_suite_id(path: Path) -> str:
     stem = path.stem
-    if stem.endswith(".suite"):
-        return stem[:-6]
     if stem == "suite":
         return path.parent.name or stem
     return stem

@@ -285,6 +285,8 @@ steps:
 | `teardown` | 用例结束后的清理策略和 action 列表 |
 | `execution` | 用例级执行参数覆盖 |
 
+`steps` 的执行顺序以 YAML 列表顺序为准，报告中的 Step order 会自动从 1 开始生成；编写用例时不需要维护 `order` 字段。
+
 #### Locator
 
 当前支持的 locator 策略：
@@ -429,14 +431,14 @@ youqu web-spec list examples/web_spec/specs --tag smoke
 youqu web-spec index examples/web_spec/specs
 ```
 
-运行 suite 编排文件，按声明顺序执行多个 case：
+运行 suite 目录，按 `suite.yaml` 声明顺序执行多个 case：
 
 ```shell
-youqu web-spec suite examples/web_spec/smoke.suite.yaml --config examples/web_spec/web_spec.yaml --dry-run
-youqu web-spec suite examples/web_spec/smoke.suite.yaml --config examples/web_spec/web_spec.yaml
+youqu web-spec suite examples/web_spec/smoke --config examples/web_spec/web_spec.yaml --dry-run
+youqu web-spec suite examples/web_spec/smoke --config examples/web_spec/web_spec.yaml
 ```
 
-suite 文件必须命名为 `suite.yaml`、`suite.yml`、`*.suite.yaml` 或 `*.suite.yml`，顶层使用 `specs` 声明 case 列表；普通 case 顶层使用 `steps`。`run` 执行当前路径下的 suite 和未被 suite 引用的独立 case，避免重复执行；`list/index` 会同时展示 case 和 suite；`suite` 命令用于只执行单个 suite 文件。
+suite 必须以文件夹组织，文件夹内必须包含 `suite.yaml` 或 `suite.yml`，顶层使用 `specs` 声明 case 列表；普通 case 顶层使用 `steps`。外部 `*.suite.yaml` / `*.suite.yml` 不再作为 suite 入口。`run` 执行当前路径下的 suite 和未被 suite 引用的独立 case，避免重复执行；`list/index` 会同时展示 case 和 suite；`suite` 命令用于只执行单个 suite 目录或目录内的 `suite.yaml`。
 
 suite 用于把一个大流程拆成多个小 case，执行时会在同一个浏览器上下文、同一个 page 上按 `specs` 顺序接续运行。suite setup 会在共享 page 上执行；suite 开始时默认进入第一个 spec 的 `entry_url` / `entry_page`，后续 spec 不会在 case 边界自动重新导航。每个 spec 的入口字段仍用于单独运行该 spec，若 suite 中间需要跳转，请在 spec setup 或 steps 中显式声明。suite 内默认跳过单个 spec 的 teardown，最终清理由 suite-level `teardown` 负责，避免中间 case 清理 cookie 或恢复入口导致状态断裂。报告会按 suite 下的具体子用例分别生成，`single_case: true` 也只影响执行接续语义，不会把多个子用例揉成一个报告记录，方便定位到底是哪个子用例失败；汇总报告会记录 suite 元数据、case 顺序、source、fast_fail、timeout 和 suite 错误。
 

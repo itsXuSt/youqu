@@ -108,7 +108,7 @@ def _suite_report_specs(suite_spec):
 
 
 def _load_run_targets(spec_path: str):
-    from web_spec.kind import is_suite_file
+    from web_spec.kind import find_suite_file, is_suite_file
     from web_spec.loader import load_spec_dir, load_specs
     from web_spec.suite import load_suite
 
@@ -117,6 +117,10 @@ def _load_run_targets(spec_path: str):
         if is_suite_file(root):
             return [load_suite(root)], []
         return [], load_specs(root)
+
+    suite_file = find_suite_file(root)
+    if suite_file is not None:
+        return [load_suite(suite_file)], []
 
     suites = [load_suite(path) for path in sorted(root.rglob("*.y*ml")) if is_suite_file(path)]
     referenced_sources = {

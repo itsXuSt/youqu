@@ -27,7 +27,9 @@ def test_load_suite_parses_metadata_and_relative_specs(tmp_path):
     spec_dir.mkdir()
     _write_spec(spec_dir / "login.yaml", "登录测试")
     _write_spec(spec_dir / "chat.yaml", "聊天测试")
-    suite_path = tmp_path / "smoke.suite.yaml"
+    suite_dir = tmp_path / "smoke"
+    suite_dir.mkdir()
+    suite_path = suite_dir / "suite.yaml"
     suite_path.write_text("""
 id: smoke
 name: 冒烟套件
@@ -39,8 +41,8 @@ setup:
   - type: wait_for
     timeout_ms: 100
 specs:
-  - specs/login.yaml
-  - path: specs/chat.yaml
+  - ../specs/login.yaml
+  - path: ../specs/chat.yaml
 teardown:
   steps:
     - type: press_key
@@ -66,14 +68,16 @@ def test_load_suite_single_case_keeps_source_specs(tmp_path):
     spec_dir.mkdir()
     _write_spec(spec_dir / "login.yaml", "登录测试")
     _write_spec(spec_dir / "chat.yaml", "聊天测试")
-    suite_path = tmp_path / "smoke.suite.yaml"
+    suite_dir = tmp_path / "smoke"
+    suite_dir.mkdir()
+    suite_path = suite_dir / "suite.yaml"
     suite_path.write_text("""
 id: smoke
 name: 冒烟套件
 single_case: true
 specs:
-  - specs/login.yaml
-  - specs/chat.yaml
+  - ../specs/login.yaml
+  - ../specs/chat.yaml
 """, encoding="utf-8")
 
     suite = load_suite(suite_path)
@@ -82,7 +86,6 @@ specs:
     assert [spec.id for spec in suite.source_specs] == ["login", "chat"]
     assert [spec.id for spec in suite.specs] == ["smoke"]
     assert suite.specs[0].source == str(suite_path)
-
 
 
 def test_load_suite_requires_suite_naming(tmp_path):
@@ -94,7 +97,7 @@ specs:
   - login.yaml
 """, encoding="utf-8")
 
-    with pytest.raises(SpecValidationError, match="suite 文件名"):
+    with pytest.raises(SpecValidationError, match="suite 必须以文件夹组织"):
         load_suite(suite_path)
 
 
@@ -106,7 +109,7 @@ def test_load_suite_rejects_case_file(tmp_path):
 
 
 def test_load_suite_rejects_mixed_steps_and_specs(tmp_path):
-    suite_path = tmp_path / "bad.suite.yaml"
+    suite_path = tmp_path / "suite.yaml"
     suite_path.write_text("""
 specs: []
 steps: []
@@ -118,7 +121,7 @@ steps: []
 
 def test_load_spec_dir_skips_suite_files(tmp_path):
     _write_spec(tmp_path / "login.yaml")
-    (tmp_path / "smoke.suite.yaml").write_text("""
+    (tmp_path / "suite.yaml").write_text("""
 specs:
   - login.yaml
 """, encoding="utf-8")
