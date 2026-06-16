@@ -3,6 +3,9 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Unit tests for src.yaml_test.parser."""
 
+import os
+from unittest.mock import patch
+
 import pytest
 from pydantic import ValidationError
 
@@ -205,3 +208,130 @@ teardown:
         assert len(tc.steps[0].assert_steps) == 2
         assert tc.steps[0].assert_steps[1].number == 3
         assert len(tc.teardown) == 2
+
+
+class TestBuiltInVariables:
+    def test_yaml_dir_substitution(self, tmp_path):
+        p = _write_yaml(tmp_path, """
+name: "YAML_DIR test"
+steps:
+  - action: keyboard_type
+    text: "${YAML_DIR}/data"
+""")
+        tc = parse_testcase(p)
+        assert str(tmp_path) in tc.steps[0].text
+        assert tc.steps[0].text == f"{tmp_path}/data"
+
+    def test_project_root_substitution(self, tmp_path):
+        (tmp_path / "pytest.ini").write_text(
+            "[pytest]\ntestpaths = apps\n", encoding="utf-8"
+        )
+        yaml_dir = tmp_path / "cases"
+        yaml_dir.mkdir()
+        (yaml_dir / "elements.yaml").write_text(
+            "app: test\nelements:\n  ok:\n    name: OK\n", encoding="utf-8"
+        )
+        p = yaml_dir / "test_case.yaml"
+        p.write_text("""
+name: "PROJECT_ROOT test"
+steps:
+  - action: keyboard_type
+    text: "${PROJECT_ROOT}/build"
+""", encoding="utf-8")
+        tc = parse_testcase(p)
+        assert tc.steps[0].text == f"{tmp_path}/build"
+
+    @patch.dict(os.environ, {"YOUQU_BUILD_DIR": "/custom/build"})
+    def test_build_dir_env_override(self, tmp_path):
+        p = _write_yaml(tmp_path, """
+name: "BUILD_DIR env override"
+steps:
+  - action: keyboard_type
+    text: "${BUILD_DIR}/app"
+""")
+        tc = parse_testcase(p)
+        assert tc.steps[0].text == "/custom/build/app"
+
+    @patch.dict(os.environ, {"YOUQU_TEST_FILES_DIR": "/data/files"})
+    def test_test_files_dir_env_override(self, tmp_path):
+        p = _write_yaml(tmp_path, """
+name: "TEST_FILES_DIR env override"
+steps:
+  - action: keyboard_type
+    text: "${TEST_FILES_DIR}/sample.pdf"
+""")
+        tc = parse_testcase(p)
+        assert tc.steps[0].text == "/data/files/sample.pdf"
+
+    def test_nested_variable_resolution(self, tmp_path):
+        p = _write_yaml(tmp_path, """
+name: "nested vars"
+vars:
+  BUILD_DIR: "${PROJECT_ROOT}/build"
+  APP_PATH: "${BUILD_DIR}/deepin-music"
+steps:
+  - action: session_start
+    command: "${APP_PATH}"
+""")
+        tc = parse_testcase(p)
+        assert "${" not in tc.steps[0].command
+        assert tc.steps[0].command.endswith("/build/deepin-music")
+
+    def test_elements_yaml_substitution(self, tmp_path):
+        (tmp_path / "elements.yaml").write_text(
+            "app: test\nelements:\n  icon:\n    name: \"${YAML_DIR}/icon.png\"\n",
+            encoding="utf-8",
+        )
+        p = tmp_path / "test_case.yaml"
+        p.write_text(f"""
+name: "elements substitution"
+steps:
+  - action: wait
+    wait: 0.0
+""", encoding="utf-8")
+        tc = parse_testcase(p)
+        icon_name = tc.elements["icon"]["name"]
+        assert "${" not in icon_name
+        assert str(tmp_path) in icon_name
+
+    def test_app_path_builtin_variable(self, tmp_path):
+        p = _write_yaml(tmp_path, """
+name: "app path builtin"
+app: "/usr/bin/deepin-music"
+vars:
+  MY_VAR: "${APP_PATH}-extra"
+steps:
+  - action: wait
+    wait: 0.0
+""")
+        tc = parse_testcase(p)
+        assert tc.app == "/usr/bin/deepin-music"
+
+    def test_user_var_overrides_builtin(self, tmp_path):
+        import yaml
+        p = _write_yaml(tmp_path, """
+name: "user override"
+vars:
+  YAML_DIR: "/custom/path"
+  BUILD_DIR: "/opt/build"
+steps:
+  - action: wait
+    wait: 0.0
+""")
+        tc = parse_testcase(p)
+        with open(p, encoding="utf-8") as f:
+            raw = yaml.safe_load(f)
+        assert raw["vars"]["YAML_DIR"] == "/custom/path"
+        assert raw["vars"]["BUILD_DIR"] == "/opt/build"
+
+    def test_circular_variable_stops(self, tmp_path):
+        p = _write_yaml(tmp_path, """
+name: "circular"
+vars:
+  A: "${B}"
+  B: "${A}"
+steps:
+  - action: wait
+    wait: 0.0
+""")
+        tc = parse_testcase(p)

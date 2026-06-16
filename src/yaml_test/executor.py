@@ -9,13 +9,15 @@ DogtailUtils, MouseKey, DbusUtils, or MenuNavigator as appropriate.
 
 from __future__ import annotations
 
+import os
+import shlex
 import subprocess
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Optional
 
 from src.yaml_test.elements import resolve_ref
-from src.yaml_test.parser import ActionStep, TestCase
+from src.yaml_test.parser import ActionStep, AssertStep, TestCase
 
 
 def selector_to_expr(selector: Any) -> str:
@@ -109,7 +111,7 @@ def _resolve_step_attrs(step: ActionStep, elements: dict) -> dict:
         attrs["items"] = step.items
 
     extras = getattr(step, "model_extra", {}) or {}
-    for key in ("duration", "key", "desc", "click_target"):
+    for key in ("duration", "key", "desc"):
         val = extras.get(key)
         if val is not None:
             attrs.setdefault(key, val)
@@ -117,9 +119,57 @@ def _resolve_step_attrs(step: ActionStep, elements: dict) -> dict:
     if menu_val is not None:
         attrs["menu"] = menu_val
 
-    attrs.setdefault("x", 0)
-    attrs.setdefault("y", 0)
+    click_target = extras.get("click_target")
+    if click_target and isinstance(click_target, str):
+        attrs.setdefault("click_target", click_target)
+
+    attrs.setdefault("x", None)
+    attrs.setdefault("y", None)
     return attrs
+
+
+def _resolve_coordinates(attrs: dict, context: dict) -> tuple[int, int]:
+    """Resolve (x, y): prefer AT-SPI dynamic center, fall back to hardcoded coords."""
+    name = attrs.get("name")
+    role = attrs.get("role")
+    accessible_id = attrs.get("accessible_id")
+
+    click_target = attrs.get("click_target")
+    if click_target and isinstance(click_target, str):
+        elements = context.get("elements", {})
+        target_attrs = resolve_ref(click_target, elements)
+        name = name or target_attrs.get("name")
+        role = role or target_attrs.get("role")
+
+    if name or role or accessible_id:
+        try:
+            dog = _get_dog(context, context.get("app") or "")
+            _ensure_window_focus(context)
+            expr = f"$//{name}/" if name else "$/"
+            if expr == "$/":
+                return attrs.get("x") or 0, attrs.get("y") or 0
+            found = dog.find_elements_by_attr(expr)
+            if found:
+                center = dog.element_center(found[0])
+                if center and center[0] >= 0 and center[1] >= 0:
+                    return center
+        except Exception:
+            pass
+
+    return attrs.get("x") or 0, attrs.get("y") or 0
+
+
+def _ensure_window_focus(context: dict):
+    app_name = context.get("app")
+    if not app_name:
+        return
+    try:
+        from src.button_center import ButtonCenter
+
+        bc = ButtonCenter(app_name, None)
+        bc.focus_windows(app_name)
+    except Exception:
+        pass
 
 
 @dataclass
@@ -144,7 +194,11 @@ def _get_dog(context: dict, app: str | None = None):
     if context.get("dog") is None:
         from src.dogtail_utils import DogtailUtils
 
-        context["dog"] = DogtailUtils(app) if app else DogtailUtils()
+        if app and "/" in app:
+            atspi_name = os.path.basename(app)
+        else:
+            atspi_name = app
+        context["dog"] = DogtailUtils(atspi_name) if atspi_name else DogtailUtils()
     return context["dog"]
 
 
@@ -152,21 +206,34 @@ def _handle_session_start(step: ActionStep, context: dict) -> None:
     cmd = step.command or context.get("app", "")
     if not cmd:
         raise ValueError("session_start requires 'command' or app name")
+    if not any(c in cmd for c in "|&;><$`"):
+        parts = cmd.split()
+        if len(parts) == 1:
+            cmd = shlex.quote(cmd)
     proc = subprocess.Popen(
         cmd,
         shell=True,
         start_new_session=True,
     )
     context["app_process"] = proc
-    if step.wait:
-        time.sleep(step.wait)
 
 
 def _handle_session_stop(step: ActionStep, context: dict) -> None:
-    app = context.get("app", "")
-    if not app:
-        return
-    subprocess.run(f"pkill {app}", shell=True, check=False)
+    proc = context.get("app_process")
+    if proc and proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+    elif proc is None:
+        app = context.get("app", "")
+        if app:
+            pkill_name = os.path.basename(app) if "/" in app else app
+            subprocess.run(
+                f"pkill {shlex.quote(pkill_name)}", shell=True, check=False
+            )
     context.pop("app_process", None)
 
 
@@ -196,19 +263,22 @@ def _handle_keyboard_type(step: ActionStep, context: dict) -> None:
 def _handle_mouse_click(step: ActionStep, context: dict) -> None:
     mk = _get_mk(context)
     attrs = _resolve_step_attrs(step, context.get("elements", {}))
-    mk.click(attrs.get("x", 0), attrs.get("y", 0))
+    x, y = _resolve_coordinates(attrs, context)
+    mk.click(x, y)
 
 
 def _handle_mouse_right_click(step: ActionStep, context: dict) -> None:
     mk = _get_mk(context)
     attrs = _resolve_step_attrs(step, context.get("elements", {}))
-    mk.right_click(attrs.get("x", 0), attrs.get("y", 0))
+    x, y = _resolve_coordinates(attrs, context)
+    mk.right_click(x, y)
 
 
 def _handle_mouse_double_click(step: ActionStep, context: dict) -> None:
     mk = _get_mk(context)
     attrs = _resolve_step_attrs(step, context.get("elements", {}))
-    mk.double_click(attrs.get("x", 0), attrs.get("y", 0))
+    x, y = _resolve_coordinates(attrs, context)
+    mk.double_click(x, y)
 
 
 def _handle_mouse_scroll(step: ActionStep, context: dict) -> None:
@@ -219,7 +289,8 @@ def _handle_mouse_scroll(step: ActionStep, context: dict) -> None:
 def _handle_mouse_drag(step: ActionStep, context: dict) -> None:
     mk = _get_mk(context)
     attrs = _resolve_step_attrs(step, context.get("elements", {}))
-    mk.drag_to(attrs.get("x", 0), attrs.get("y", 0))
+    x, y = _resolve_coordinates(attrs, context)
+    mk.drag_to(x, y)
 
 
 def _handle_element_action(step: ActionStep, context: dict) -> None:
@@ -294,8 +365,7 @@ def _handle_context_menu_comb(step: ActionStep, context: dict) -> None:
 
     elements = context.get("elements") or {}
     attrs = _resolve_step_attrs(step, elements)
-    x = attrs.get("x", 0)
-    y = attrs.get("y", 0)
+    x, y = _resolve_coordinates(attrs, context)
     items = attrs.get("menu", []) or attrs.get("items", [])
 
     if not items:
@@ -351,14 +421,7 @@ def _handle_dbus_get_property(step: ActionStep, context: dict) -> None:
 
 
 def _handle_wait(step: ActionStep, context: dict) -> None:
-    seconds = step.wait
-    if seconds is None:
-        extras = getattr(step, "model_extra", {}) or {}
-        raw = extras.get("duration")
-        if raw is not None:
-            seconds = float(raw)
-    if seconds:
-        time.sleep(seconds)
+    pass
 
 
 def _handle_screenshot(step: ActionStep, context: dict) -> None:
@@ -394,6 +457,100 @@ ACTION_HANDLERS: dict[str, Callable[[ActionStep, dict], None]] = {
     "screenshot": _handle_screenshot,
 }
 
+_LIFECYCLE_ACTIONS = frozenset({"session_start", "session_stop"})
+
+
+def _extract_selector_from_step(
+    step: ActionStep, elements: dict
+) -> dict | None:
+    if step.ref:
+        attrs = resolve_ref(step.ref, elements)
+        name = attrs.get("name")
+        role = attrs.get("role")
+        if name or role:
+            return {"name": name, "role": role}
+    if step.selector is not None:
+        d = step.selector.model_dump(exclude_none=True)
+        if d.get("name") or d.get("role"):
+            return d
+    return None
+
+
+def _extract_selector_from_assert(
+    assert_step: AssertStep, elements: dict
+) -> dict | None:
+    if assert_step.type not in (
+        "element_visible",
+        "element_not_visible",
+        "element_numbers",
+        "element_text",
+    ):
+        return None
+    if assert_step.ref:
+        attrs = resolve_ref(assert_step.ref, elements)
+        name = attrs.get("name")
+        role = attrs.get("role")
+        if name or role:
+            return {"name": name, "role": role}
+    if assert_step.selector is not None:
+        d = assert_step.selector.model_dump(exclude_none=True)
+        if d.get("name") or d.get("role"):
+            return d
+    return None
+
+
+def _peek_next_selector(
+    step: ActionStep,
+    idx: int,
+    all_steps: list[tuple[str, ActionStep]],
+    elements: dict,
+) -> dict | None:
+    for assert_step in step.assert_steps:
+        sel = _extract_selector_from_assert(assert_step, elements)
+        if sel:
+            return sel
+
+    if idx + 1 < len(all_steps):
+        _, next_step = all_steps[idx + 1]
+        if next_step.action in _LIFECYCLE_ACTIONS:
+            return None
+        if next_step.wait_for:
+            return None
+        sel = _extract_selector_from_step(next_step, elements)
+        if sel:
+            return sel
+
+    return None
+
+
+def _smart_wait(
+    target: dict, timeout_s: float, context: dict
+) -> bool:
+    name = target.get("name")
+    role = target.get("role")
+    if not name and not role:
+        time.sleep(timeout_s)
+        return False
+
+    expr = f"$//{name}/" if name else "$/"
+    if expr == "$/":
+        time.sleep(timeout_s)
+        return False
+
+    dog = _get_dog(context, context.get("app") or "")
+
+    deadline = time.time() + timeout_s
+    interval = 0.2
+    while time.time() < deadline:
+        try:
+            found = dog.find_elements_by_attr(expr)
+            if found:
+                return True
+        except Exception:
+            pass
+        time.sleep(interval)
+    return False
+
 
 class StepExecutor:
     """Executes a parsed TestCase through the YouQu API."""
@@ -409,7 +566,6 @@ class StepExecutor:
         }
 
     def run(self) -> ExecutorResult:
-        """Execute setup → steps → teardown, return aggregate result."""
         result = ExecutorResult()
         all_steps = [
             ("setup", s) for s in self.testcase.setup
@@ -417,7 +573,7 @@ class StepExecutor:
             ("steps", s) for s in self.testcase.steps
         ]
         for idx, (phase, step) in enumerate(all_steps):
-            step_result = self._execute_step(step, idx)
+            step_result = self._execute_step(step, idx, all_steps)
             if not step_result.passed:
                 result.passed = False
                 result.message = step_result.message
@@ -430,14 +586,18 @@ class StepExecutor:
                 handler = ACTION_HANDLERS.get(tear.action)
                 if handler:
                     handler(tear, self.context)
+                if tear.wait:
+                    time.sleep(tear.wait)
+                if tear.wait_after:
+                    time.sleep(tear.wait_after / 1000.0)
             except Exception:
                 pass
         return result
 
     def _execute_step(
-        self, step: ActionStep, idx: int
+        self, step: ActionStep, idx: int,
+        all_steps: list[tuple[str, ActionStep]] | None = None,
     ) -> ExecutorResult:
-        """Execute a single step: wait_for → action → asserts → wait_after."""
         result = ExecutorResult(step_index=idx)
         step_label = step.name or step.action
 
@@ -472,7 +632,16 @@ class StepExecutor:
             return result
 
         if step.wait:
-            time.sleep(step.wait)
+            if all_steps is not None:
+                target = _peek_next_selector(
+                    step, idx, all_steps, self.context.get("elements", {}),
+                )
+                if target:
+                    _smart_wait(target, step.wait, self.context)
+                else:
+                    time.sleep(step.wait)
+            else:
+                time.sleep(step.wait)
 
         for assert_step in step.assert_steps:
             try:

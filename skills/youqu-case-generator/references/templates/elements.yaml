@@ -1,11 +1,13 @@
 app: deepin-terminal
 
 elements:
+  # AT-SPI elements (preferred — dynamically resolved on any display)
   theme_dark:
     menu: ["主题", "深色"]
 
-  # Coordinates are screen-specific — adjust for your display
+  # Coordinate elements (fallback only — use name/role when possible)
   context_find:
+    name: "终端窗口"
     x: 989
     y: 591
     menu: ["查找"]

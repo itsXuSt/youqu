@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: GPL-2.0-only
 """Unit tests for src.yaml_test.executor."""
 
+import subprocess
 import sys
 from unittest.mock import MagicMock, patch
 
@@ -458,3 +459,321 @@ class TestRefResolution:
         result = StepExecutor(tc).run()
         assert not result.passed
         assert "ok_button" in result.message
+
+
+class TestDynamicCoordinates:
+    @patch("src.yaml_test.executor._ensure_window_focus")
+    @patch("src.yaml_test.executor._get_dog")
+    @patch("src.yaml_test.executor._get_mk")
+    def test_atspi_dynamic_priority(self, mock_get_mk, mock_get_dog, mock_focus):
+        mk = MagicMock()
+        mock_get_mk.return_value = mk
+        dog = MagicMock()
+        dog.find_elements_by_attr.return_value = [MagicMock()]
+        dog.element_center.return_value = (250, 350)
+        mock_get_dog.return_value = dog
+
+        tc = _make_testcase(
+            [ActionStep(action="mouse_click", x=100, y=200,
+                        selector=Selector(name="play_btn"))],
+        )
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mk.click.assert_called_once_with(250, 350)
+
+    @patch("src.yaml_test.executor._ensure_window_focus")
+    @patch("src.yaml_test.executor._get_dog")
+    @patch("src.yaml_test.executor._get_mk")
+    def test_atspi_fallback_to_hardcoded(self, mock_get_mk, mock_get_dog, mock_focus):
+        mk = MagicMock()
+        mock_get_mk.return_value = mk
+        dog = MagicMock()
+        dog.find_elements_by_attr.return_value = []
+        mock_get_dog.return_value = dog
+
+        tc = _make_testcase(
+            [ActionStep(action="mouse_click", x=100, y=200,
+                        selector=Selector(name="missing_btn"))],
+        )
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mk.click.assert_called_once_with(100, 200)
+
+    @patch("src.yaml_test.executor._get_mk")
+    def test_pure_coordinate_no_atspi_lookup(self, mock_get_mk):
+        mk = MagicMock()
+        mock_get_mk.return_value = mk
+
+        tc = _make_testcase([ActionStep(action="mouse_click", x=42, y=99)])
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mk.click.assert_called_once_with(42, 99)
+
+    @patch("src.yaml_test.executor._get_mk")
+    def test_none_sentinel_xy_defaults_to_zero(self, mock_get_mk):
+        mk = MagicMock()
+        mock_get_mk.return_value = mk
+
+        tc = _make_testcase([ActionStep(action="mouse_click")])
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mk.click.assert_called_once_with(0, 0)
+
+
+class TestSmartWait:
+    @patch("src.yaml_test.assertions.run_assert")
+    @patch("src.yaml_test.executor._smart_wait")
+    @patch("src.yaml_test.executor.time.sleep")
+    def test_smart_wait_from_assert(self, mock_sleep, mock_smart, mock_assert):
+        mock_smart.return_value = True
+        tc = _make_testcase([
+            ActionStep(
+                action="wait", wait=2.0,
+                assert_steps=[
+                    AssertStep(type="element_visible", selector=Selector(name="dialog")),
+                ],
+            ),
+        ])
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mock_smart.assert_called_once()
+        target = mock_smart.call_args[0][0]
+        assert target["name"] == "dialog"
+
+    @patch("src.yaml_test.executor._smart_wait")
+    @patch("src.yaml_test.executor.time.sleep")
+    def test_smart_wait_from_next_step(self, mock_sleep, mock_smart):
+        mock_smart.return_value = True
+        tc = _make_testcase([
+            ActionStep(action="wait", wait=1.0),
+            ActionStep(action="element_action", selector=Selector(name="next_btn"), do="click"),
+        ])
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mock_smart.assert_called_once()
+        target = mock_smart.call_args[0][0]
+        assert target["name"] == "next_btn"
+
+    @patch("src.yaml_test.executor._smart_wait")
+    @patch("src.yaml_test.executor.time.sleep")
+    def test_smart_wait_skips_lifecycle_next(self, mock_sleep, mock_smart):
+        tc = _make_testcase([
+            ActionStep(action="wait", wait=1.0),
+        ], teardown=[ActionStep(action="session_stop")])
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mock_smart.assert_not_called()
+        mock_sleep.assert_any_call(1.0)
+
+    @patch("src.yaml_test.executor.time.sleep")
+    def test_smart_wait_last_step_fallback(self, mock_sleep):
+        tc = _make_testcase([ActionStep(action="wait", wait=0.5)])
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mock_sleep.assert_any_call(0.5)
+
+    @patch("src.yaml_test.executor.time.sleep")
+    def test_smart_wait_keyboard_next_fallback(self, mock_sleep):
+        tc = _make_testcase([
+            ActionStep(action="wait", wait=0.3),
+            ActionStep(action="keyboard_press", keys="Escape"),
+        ])
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mock_sleep.assert_any_call(0.3)
+
+    @patch("src.yaml_test.executor._smart_wait")
+    @patch("src.yaml_test.executor.time.sleep")
+    def test_smart_wait_no_target_sleeps(self, mock_sleep, mock_smart):
+        tc = _make_testcase([
+            ActionStep(action="wait", wait=1.0),
+            ActionStep(action="keyboard_press", keys="Escape"),
+        ])
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mock_smart.assert_not_called()
+        mock_sleep.assert_any_call(1.0)
+
+
+class TestSessionLifecycle:
+    def test_session_stop_uses_proc_terminate(self):
+        proc = MagicMock()
+        proc.poll.return_value = None
+        tc = _make_testcase(
+            [ActionStep(action="wait", wait=0.0)],
+            teardown=[ActionStep(action="session_stop")],
+        )
+        executor = StepExecutor(tc)
+        executor.context["app_process"] = proc
+        result = executor.run()
+        assert result.passed
+        proc.terminate.assert_called_once()
+        proc.wait.assert_called_once()
+
+    def test_session_stop_fallback_pkill_basename(self):
+        proc = MagicMock()
+        proc.poll.return_value = None
+        tc = _make_testcase(
+            [ActionStep(action="wait", wait=0.0)],
+            teardown=[ActionStep(action="session_stop")],
+            app="/usr/bin/deepin-music",
+        )
+        executor = StepExecutor(tc)
+        executor.context["app_process"] = proc
+        with patch("src.yaml_test.executor.subprocess.run") as mock_run:
+            proc.terminate.return_value = None
+            proc.wait.side_effect = subprocess.TimeoutExpired("cmd", 5)
+            result = executor.run()
+        assert result.passed
+        proc.kill.assert_called_once()
+
+    @patch("src.yaml_test.executor.subprocess.Popen")
+    def test_session_start_no_double_sleep(self, mock_popen):
+        mock_popen.return_value = MagicMock()
+        tc = _make_testcase(
+            [ActionStep(action="wait", wait=0.0)],
+            setup=[ActionStep(action="session_start", command="app", wait=3.0)],
+        )
+        with patch("src.yaml_test.executor.time.sleep") as mock_sleep:
+            result = StepExecutor(tc).run()
+        assert result.passed
+        setup_sleeps = [c for c in mock_sleep.call_args_list if c.args == (3.0,)]
+        assert len(setup_sleeps) == 1
+
+    @patch("src.yaml_test.executor.time.sleep")
+    def test_handle_wait_is_noop(self, mock_sleep):
+        from src.yaml_test.executor import _handle_wait
+        step = ActionStep(action="wait", wait=5.0)
+        _handle_wait(step, {})
+        mock_sleep.assert_not_called()
+
+    @patch("src.yaml_test.executor.time.sleep")
+    def test_teardown_basic_wait(self, mock_sleep):
+        tc = _make_testcase(
+            [ActionStep(action="wait", wait=0.0)],
+            teardown=[ActionStep(action="screenshot", wait=2.0)],
+        )
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mock_sleep.assert_any_call(2.0)
+
+    @patch("src.yaml_test.executor.time.sleep")
+    def test_teardown_wait_after_ms(self, mock_sleep):
+        tc = _make_testcase(
+            [ActionStep(action="wait", wait=0.0)],
+            teardown=[ActionStep(action="screenshot", wait_after=500)],
+        )
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mock_sleep.assert_any_call(0.5)
+
+
+class TestGetDogBasename:
+    @patch("src.dogtail_utils.DogtailUtils")
+    def test_path_app_extracted_to_basename(self, mock_dog_cls):
+        from src.yaml_test.executor import _get_dog
+        context = {"dog": None}
+        _get_dog(context, "/usr/bin/deepin-music")
+        mock_dog_cls.assert_called_once_with("deepin-music")
+
+    @patch("src.dogtail_utils.DogtailUtils")
+    def test_plain_app_name_preserved(self, mock_dog_cls):
+        from src.yaml_test.executor import _get_dog
+        context = {"dog": None}
+        _get_dog(context, "deepin-music")
+        mock_dog_cls.assert_called_once_with("deepin-music")
+
+
+class TestSmartWaitReal:
+    def test_polls_until_found(self):
+        from src.yaml_test.executor import _smart_wait
+        dog = MagicMock()
+        call_count = 0
+
+        def find_side_effect(expr):
+            nonlocal call_count
+            call_count += 1
+            return [] if call_count < 3 else [MagicMock()]
+
+        dog.find_elements_by_attr.side_effect = find_side_effect
+        with patch("src.yaml_test.executor._get_dog", return_value=dog), \
+             patch("src.yaml_test.executor.time.sleep"):
+            result = _smart_wait(
+                {"name": "ok_btn", "role": "push button"}, 2.0, {}
+            )
+        assert result is True
+        assert call_count == 3
+
+    def test_returns_false_on_timeout(self):
+        from src.yaml_test.executor import _smart_wait
+        dog = MagicMock()
+        dog.find_elements_by_attr.return_value = []
+        t = [0.0]
+
+        def advance_time(*_):
+            t[0] += 0.25
+            return t[0]
+
+        with patch("src.yaml_test.executor._get_dog", return_value=dog), \
+             patch("src.yaml_test.executor.time.sleep"), \
+             patch("src.yaml_test.executor.time.time", side_effect=advance_time):
+            result = _smart_wait(
+                {"name": "missing", "role": "push button"}, 0.5, {}
+            )
+        assert result is False
+
+    def test_falls_back_to_sleep_when_no_name_or_role(self):
+        from src.yaml_test.executor import _smart_wait
+        with patch("src.yaml_test.executor.time.sleep") as mock_sleep:
+            result = _smart_wait({"x": 100}, 1.0, {})
+        assert result is False
+        mock_sleep.assert_called_once_with(1.0)
+
+
+class TestSessionStopEdgeCases:
+    def test_proc_already_dead_silent_cleanup(self):
+        proc = MagicMock()
+        proc.poll.return_value = 42
+        tc = _make_testcase(
+            [ActionStep(action="wait", wait=0.0)],
+            teardown=[ActionStep(action="session_stop")],
+        )
+        executor = StepExecutor(tc)
+        executor.context["app_process"] = proc
+        result = executor.run()
+        assert result.passed
+        proc.terminate.assert_not_called()
+
+    @patch("src.yaml_test.executor.subprocess.run")
+    def test_pkill_uses_shlex_quote(self, mock_run):
+        tc = _make_testcase(
+            [ActionStep(action="wait", wait=0.0)],
+            teardown=[ActionStep(action="session_stop")],
+            app="my app;evil",
+        )
+        StepExecutor(tc).run()
+        call_args = mock_run.call_args[0][0]
+        assert "'" in call_args
+
+
+class TestMouseDoubleClick:
+    @patch("src.yaml_test.executor._get_mk")
+    def test_ref_double_click(self, mock_get_mk):
+        mk = MagicMock()
+        mock_get_mk.return_value = mk
+        tc = _make_testcase(
+            [ActionStep(action="mouse_double_click", ref="app_center")],
+            elements=_STANDARD_ELEMENTS,
+        )
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mk.double_click.assert_called_once_with(500, 300)
+
+    @patch("src.yaml_test.executor._get_mk")
+    def test_inline_xy_double_click(self, mock_get_mk):
+        mk = MagicMock()
+        mock_get_mk.return_value = mk
+        tc = _make_testcase([ActionStep(action="mouse_double_click", x=42, y=99)])
+        result = StepExecutor(tc).run()
+        assert result.passed
+        mk.double_click.assert_called_once_with(42, 99)

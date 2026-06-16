@@ -22,6 +22,7 @@ Schema:
 
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Any, Optional
@@ -130,6 +131,22 @@ def _substitute(value: Any, variables: dict[str, Any]) -> Any:
     return value
 
 
+def _find_project_root(yaml_path: Path) -> Path | None:
+    """Search upward for the project root directory.
+
+    Looks for ``elements.yaml`` (marks the ``yaml/`` directory) or
+    ``pytest.ini`` (marks an autotest root).
+    """
+    current = yaml_path.parent
+    for _ in range(5):
+        if (current / "elements.yaml").exists():
+            return current.parent
+        if (current / "pytest.ini").exists():
+            return current
+        current = current.parent
+    return None
+
+
 def parse_testcase(path) -> TestCase:
     """Read and validate a YAML test case file.
 
@@ -155,6 +172,39 @@ def parse_testcase(path) -> TestCase:
 
     variables = raw_data.get("vars", {}) or {}
     if isinstance(variables, dict):
+        variables.setdefault("YAML_DIR", str(file_path.parent))
+        _project_root = _find_project_root(file_path)
+        if _project_root:
+            variables.setdefault("PROJECT_ROOT", str(_project_root))
+        _default_test_files = (
+            str(_project_root / "test_files") if _project_root
+            else str(file_path.parent / "test_files")
+        )
+        variables.setdefault(
+            "TEST_FILES_DIR",
+            os.environ.get("YOUQU_TEST_FILES_DIR", _default_test_files),
+        )
+        _default_build = (
+            str(_project_root / "build") if _project_root
+            else str(file_path.parent / "build")
+        )
+        variables.setdefault(
+            "BUILD_DIR",
+            os.environ.get("YOUQU_BUILD_DIR", _default_build),
+        )
+        _raw_app = raw_data.get("app", "")
+        if _raw_app:
+            variables.setdefault(
+                "APP_PATH",
+                os.path.basename(_raw_app) if "/" in str(_raw_app) else str(_raw_app),
+            )
+
+        for _ in range(5):
+            prev = dict(variables)
+            variables = {k: _substitute(v, variables) for k, v in variables.items()}
+            if variables == prev:
+                break
+
         substituted = _substitute(raw_data, variables)
     else:
         substituted = raw_data
@@ -162,7 +212,11 @@ def parse_testcase(path) -> TestCase:
     testcase = TestCase.model_validate(substituted)
 
     try:
-        testcase.elements = load_elements(file_path)
+        elements_data = load_elements(file_path)
+        if isinstance(variables, dict) and elements_data:
+            testcase.elements = _substitute(elements_data, variables)
+        else:
+            testcase.elements = elements_data
     except ElementLoadError:
         raise
 

@@ -148,7 +148,7 @@ not globally registered elements.
 | Action | Parameters | Description |
 |--------|-----------|-------------|
 | `session_start` | `command` (str), `wait` (float, seconds) | Launch app process, wait for window |
-| `session_stop` | — | Kill all app processes via `pkill` |
+| `session_stop` | — | Terminate app process via `proc.terminate()` + `proc.kill()` fallback |
 
 ### Keyboard
 
@@ -162,11 +162,11 @@ not globally registered elements.
 
 | Action | Parameters | Description |
 |--------|-----------|-------------|
-| `mouse_click` | `ref` (str) | Left click — resolve x/y from elements.yaml |
-| `mouse_right_click` | `ref` (str) | Right click — resolve x/y from elements.yaml |
-| `mouse_double_click` | `ref` (str) | Double click — resolve x/y from elements.yaml |
+| `mouse_click` | `ref` (str) | Left click — resolve x/y from elements.yaml (AT-SPI name/role → dynamic center if available, else x/y fallback) |
+| `mouse_right_click` | `ref` (str) | Right click — resolve x/y from elements.yaml (AT-SPI name/role → dynamic center if available, else x/y fallback) |
+| `mouse_double_click` | `ref` (str) | Double click — resolve x/y from elements.yaml (AT-SPI name/role → dynamic center if available, else x/y fallback) |
 | `mouse_scroll` | `amount` (int) | Scroll (±amount, positive=up) |
-| `mouse_drag` | `ref` (str) | Drag to coordinates — resolve x/y from elements.yaml |
+| `mouse_drag` | `ref` (str) | Drag to coordinates — resolve x/y from elements.yaml (AT-SPI name/role → dynamic center if available, else x/y fallback) |
 
 ### AT-SPI Element Actions
 
@@ -198,7 +198,7 @@ See `src/menu_nav.py`.
 
 | Action | Parameters | Description |
 |--------|-----------|-------------|
-| `wait` | `wait` (float, seconds) | Sleep for N seconds |
+| `wait` | `wait` (float, seconds) | Smart wait — polls AT-SPI tree for next step's target; falls back to sleep if no target |
 | `screenshot` | — | Capture screen to evidence directory |
 
 ## Assert Reference
@@ -284,8 +284,29 @@ selector:
 
 ## Variable Substitution
 
-Use `${VAR_NAME}` in any string field. Variables are defined in the top-level
-`vars:` section and substituted at parse time (before execution).
+Use `${VAR_NAME}` in any string field. Variables are substituted at parse time
+(before execution) with up to 5 levels of nesting.
+
+### Built-in Variables (always available, no `vars:` needed)
+
+| Variable | Value | Override Env |
+|----------|-------|--------------|
+| `${YAML_DIR}` | Directory containing the current `.yaml` file | — |
+| `${PROJECT_ROOT}` | Project root (parent of `elements.yaml` dir, or `pytest.ini` dir) | — |
+| `${TEST_FILES_DIR}` | Test data files directory (default: `${PROJECT_ROOT}/test_files`) | `YOUQU_TEST_FILES_DIR` |
+| `${BUILD_DIR}` | Build output directory (default: `${PROJECT_ROOT}/build`) | `YOUQU_BUILD_DIR` |
+| `${APP_PATH}` | `app` field basename (for AT-SPI registration name) | — |
+
+```yaml
+setup:
+  - action: session_start
+    command: "${BUILD_DIR}/deepin-music"
+steps:
+  - action: keyboard_type
+    text: "${TEST_FILES_DIR}/sample.mp3"
+```
+
+### User-Defined Variables
 
 ```yaml
 vars:
@@ -298,6 +319,17 @@ steps:
   - action: element_set_value
     selector: {name: "路径输入框"}
     text: "${PDF_PATH}"
+```
+
+Nested references are resolved iteratively:
+
+```yaml
+vars:
+  BUILD_DIR: "${PROJECT_ROOT}/build"
+  APP_PATH: "${BUILD_DIR}/deepin-music"
+setup:
+  - action: session_start
+    command: "${APP_PATH}"  # → /project/build/deepin-music
 ```
 
 ## Wait Conditions

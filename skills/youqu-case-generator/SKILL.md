@@ -410,13 +410,13 @@ scatter element definitions across files.
 | Action | Key Parameters | Description |
 |--------|---------------|-------------|
 | `session_start` | `command`, `wait` | Launch app process |
-| `session_stop` | — | Kill app process |
+| `session_stop` | — | Terminate app process (proc.terminate + proc.kill fallback) |
 | `keyboard_press` | `keys` | Single key or combo (e.g. "Return", "ctrl+a") |
 | `keyboard_hot_key` | `keys` | Key combination (e.g. "ctrl,c") |
 | `keyboard_type` | `text` | Type text string |
-| `mouse_click` | `ref` | Left click at coordinates (resolved from elements.yaml) |
-| `mouse_right_click` | `ref` | Right click at coordinates |
-| `mouse_double_click` | `ref` | Double click at coordinates |
+| `mouse_click` | `ref` | Left click — AT-SPI name/role → dynamic center if available, else x/y fallback |
+| `mouse_right_click` | `ref` | Right click — same dynamic center resolution |
+| `mouse_double_click` | `ref` | Double click — same dynamic center resolution |
 | `mouse_scroll` | `amount` | Scroll (positive=up) |
 | `mouse_drag` | `ref` | Drag to coordinates |
 | `element_action` | `ref`, `do` | AT-SPI element operation (resolved from elements.yaml. do: click/right_click/double_click) |
@@ -425,7 +425,7 @@ scatter element definitions across files.
 | `context_menu_comb` | `ref` | Right-click + keyboard-navigate context menu |
 | `dbus_call` | `value` | Call D-Bus method |
 | `dbus_get_property` | `value` | Read D-Bus property |
-| `wait` | `wait` | Sleep in seconds |
+| `wait` | `wait` | Smart wait — polls AT-SPI tree for next step's target; falls back to sleep if no target |
 | `screenshot` | — | Capture screen |
 
 **Assert types for inline use** (still use inline `selector` for asserts within step):
@@ -450,7 +450,17 @@ scatter element definitions across files.
 | `dbus_property` | `value` | D-Bus property equals expected |
 
 **Variable substitution**: Use `${VAR_NAME}` in any string field. Variables are defined in the
-top-level `vars:` section and substituted at parse time.
+top-level `vars:` section and substituted at parse time. Built-in variables (auto-injected, overridable via `vars:`):
+
+| Variable | Value | Env Override |
+|---|---|---|
+| `${YAML_DIR}` | Directory containing the test YAML file | — |
+| `${PROJECT_ROOT}` | Project root (found via pytest.ini or elements.yaml) | — |
+| `${TEST_FILES_DIR}` | `${PROJECT_ROOT}/test_files` | `YOUQU_TEST_FILES_DIR` |
+| `${BUILD_DIR}` | `${PROJECT_ROOT}/build` | `YOUQU_BUILD_DIR` |
+| `${APP_PATH}` | `app` field basename (for AT-SPI registration name) | — |
+
+Prefer `${BUILD_DIR}` and `${TEST_FILES_DIR}` over hardcoded absolute paths.
 
 **Wait conditions**: Steps can have `wait_for` to poll until an element appears. Uses inline
 selectors (not ref) since wait_for target is transient UI state, not a registered element:
