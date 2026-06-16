@@ -91,11 +91,12 @@ class WebSpecRunner:
         )
         out_dir = Path(report_dir or _timestamp_dir(self.config.report_dir))
         out_dir.mkdir(parents=True, exist_ok=True)
+        execution_specs = _suite_report_specs(suite_spec)
         self._emit(
             "suite_start",
             suite_id=suite.suite_id,
             title=suite.suite_name,
-            total_specs=len(suite_spec.specs),
+            total_specs=len(execution_specs),
             report_dir=str(out_dir),
         )
         page = None
@@ -105,8 +106,8 @@ class WebSpecRunner:
                 raise EnvironmentError("浏览器上下文未初始化")
             execution = self._default_execution()
             page = self._context.new_page()
-            if suite_spec.specs:
-                page.goto(self._entry_url(suite_spec.specs[0]), wait_until="domcontentloaded")
+            if execution_specs:
+                page.goto(self._entry_url(execution_specs[0]), wait_until="domcontentloaded")
                 self._wait_after_navigation(page)
 
             setup_failed = False
@@ -114,23 +115,23 @@ class WebSpecRunner:
                 setup_error = self._execute_lifecycle_actions(page, suite_spec.setup, execution)
                 if setup_error:
                     suite.error = f"suite setup failed: {setup_error}"
-                    self._append_cancelled_records(suite, suite_spec.specs, out_dir, suite.error)
+                    self._append_cancelled_records(suite, execution_specs, out_dir, suite.error)
                     setup_failed = True
 
             started_at = time.monotonic()
-            for index, spec in enumerate(suite_spec.specs, start=1):
+            for index, spec in enumerate(execution_specs, start=1):
                 if setup_failed:
                     break
                 if suite_spec.timeout and time.monotonic() - started_at >= suite_spec.timeout:
                     reason = f"cancelled by suite timeout after {suite_spec.timeout}s"
-                    self._append_cancelled_records(suite, suite_spec.specs[index - 1:], out_dir, reason)
+                    self._append_cancelled_records(suite, execution_specs[index - 1:], out_dir, reason)
                     break
                 record = self._run_spec_on_page(
                     page,
                     spec,
                     out_dir,
                     spec_index=index,
-                    total_specs=len(suite_spec.specs),
+                    total_specs=len(execution_specs),
                     suite=suite,
                     run_teardown=False,
                     navigate=False,
@@ -139,14 +140,14 @@ class WebSpecRunner:
                 save_spec_report(record)
                 if suite_spec.fast_fail and record.status != RunStatus.PASSED:
                     reason = f"cancelled by suite fast_fail after {spec.id} failed"
-                    self._append_cancelled_records(suite, suite_spec.specs[index:], out_dir, reason)
+                    self._append_cancelled_records(suite, execution_specs[index:], out_dir, reason)
                     break
         except EnvironmentError as exc:
             suite.error = str(exc)
-            # suite.specs 与 suite_spec.specs 按执行顺序一一对应；这里只补齐尚未产生记录的剩余 specs。
+            # suite.specs 与 execution_specs 按执行顺序一一对应；这里只补齐尚未产生记录的剩余 specs。
             self._append_cancelled_records(
                 suite,
-                suite_spec.specs[len(suite.specs):],
+                execution_specs[len(suite.specs):],
                 out_dir,
                 str(exc),
                 RunStatus.BLOCKED_ENV,
@@ -589,6 +590,12 @@ def _locator_info(result: Any) -> LocatorInfo | None:
         match_count=result.locator_match_count,
         stability=result.locator_stability or "stable_bem",
     )
+
+
+def _suite_report_specs(suite_spec: SuiteSpec) -> list[TestSpec]:
+    if suite_spec.single_case and suite_spec.source_specs:
+        return suite_spec.source_specs
+    return suite_spec.specs
 
 
 def _safe_id(value: str) -> str:

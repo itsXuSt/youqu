@@ -68,6 +68,7 @@ def test_save_suite_summary(tmp_path):
         spec_title="登录测试",
         report_dir=str(tmp_path / "login"),
         suite_id="smoke",
+        suite_name="冒烟套件",
         suite_order=1,
         spec_source="login.yaml",
     )
@@ -92,4 +93,5 @@ def test_save_suite_summary(tmp_path):
     assert "Fast fail: True" in html
     assert "smoke.suite.yaml" in html
     assert "suite teardown failed" in html
+    assert "smoke 冒烟套件" in html
     assert "login.yaml" in html

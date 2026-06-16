@@ -234,6 +234,55 @@ specs:
     assert "共 1 个 spec" in captured.out
 
 
+def test_web_spec_run_single_case_suite_dry_run_lists_source_specs(tmp_path, capsys):
+    (tmp_path / "login.yaml").write_text("""
+id: login
+title: 登录测试
+steps:
+  - description: 检查
+    assertions:
+      - type: visible
+        locator: {strategy: text, value: 欢迎}
+""", encoding="utf-8")
+    (tmp_path / "profile.yaml").write_text("""
+id: profile
+title: 资料测试
+steps:
+  - description: 检查
+    assertions:
+      - type: visible
+        locator: {strategy: text, value: 资料}
+""", encoding="utf-8")
+    suite_path = tmp_path / "flow.suite.yaml"
+    suite_path.write_text("""
+id: flow
+name: 合并流程
+single_case: true
+specs:
+  - login.yaml
+  - profile.yaml
+""", encoding="utf-8")
+
+    args = Namespace(
+        web_spec_command="run",
+        spec_path=str(suite_path),
+        config=None,
+        headed=False,
+        report_dir=None,
+        dry_run=True,
+        no_screenshot=False,
+    )
+
+    run(args)
+
+    captured = capsys.readouterr()
+    assert "- login: 登录测试" in captured.out
+    assert "- profile: 资料测试" in captured.out
+    assert "- flow: 合并流程" not in captured.out
+    assert "共 1 个 suite, 2 个 spec" in captured.out
+
+
+
 def test_web_spec_run_accepts_suite_file(tmp_path, capsys):
     spec_path = tmp_path / "login.yaml"
     spec_path.write_text("""
@@ -313,6 +362,102 @@ specs:
     assert "[DRY-RUN] profile: 资料测试" in captured.out
     assert "[DRY-RUN] login: 登录测试" not in captured.out
     assert "共 1 个 suite, 2 个 spec" in captured.out
+
+
+def test_web_spec_run_directory_summary_keeps_suite_results(tmp_path, monkeypatch):
+    (tmp_path / "login.yaml").write_text("""
+id: login
+title: 登录测试
+steps:
+  - description: 检查
+    assertions:
+      - type: visible
+        locator: {strategy: text, value: 欢迎}
+""", encoding="utf-8")
+    (tmp_path / "profile.yaml").write_text("""
+id: profile
+title: 资料测试
+steps:
+  - description: 检查
+    assertions:
+      - type: visible
+        locator: {strategy: text, value: 资料}
+""", encoding="utf-8")
+    (tmp_path / "smoke.suite.yaml").write_text("""
+id: smoke
+name: 冒烟套件
+specs:
+  - login.yaml
+""", encoding="utf-8")
+
+    class FakeRunner:
+        def __init__(self, config, reporter=None):
+            pass
+
+        def run_suite(self, suite_spec, report_dir=None):
+            from pathlib import Path
+
+            from web_spec.result import RunRecord, SuiteRecord
+
+            suite = SuiteRecord(suite_id=suite_spec.id, suite_name=suite_spec.name)
+            spec = suite_spec.specs[0]
+            record = RunRecord(
+                spec_id=spec.id,
+                spec_title=spec.title,
+                report_dir=str(Path(report_dir) / spec.id),
+                suite_id=suite.suite_id,
+                suite_name=suite.suite_name,
+                suite_order=1,
+                spec_source=spec.source,
+            )
+            record.finalize()
+            suite.specs.append(record)
+            suite.finalize()
+            return suite
+
+        def run_all(self, specs, report_dir=None):
+            from pathlib import Path
+
+            from web_spec.result import RunRecord, SuiteRecord
+
+            suite = SuiteRecord()
+            for index, spec in enumerate(specs, start=1):
+                record = RunRecord(
+                    spec_id=spec.id,
+                    spec_title=spec.title,
+                    report_dir=str(Path(report_dir) / spec.id),
+                    spec_source=spec.source,
+                )
+                record.finalize()
+                suite.specs.append(record)
+            suite.finalize()
+            return suite
+
+    monkeypatch.setattr("web_spec.runner.WebSpecRunner", FakeRunner)
+    report_dir = tmp_path / "report"
+    args = Namespace(
+        web_spec_command="run",
+        spec_path=str(tmp_path),
+        config=None,
+        headed=False,
+        report_dir=str(report_dir),
+        dry_run=False,
+        no_screenshot=False,
+        verbose=False,
+    )
+
+    run(args)
+
+    import json
+
+    data = json.loads((report_dir / "summary.json").read_text(encoding="utf-8"))
+    assert data["total"] == 2
+    assert [spec["spec_id"] for spec in data["specs"]] == ["login", "profile"]
+    assert data["specs"][0]["suite_id"] == "smoke"
+    html = (report_dir / "summary.html").read_text(encoding="utf-8")
+    assert "smoke 冒烟套件" in html
+    assert "profile" in html
+
 
 
 def test_web_spec_suite_rejects_case_file(tmp_path, capsys):

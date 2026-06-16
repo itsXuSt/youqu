@@ -438,7 +438,7 @@ youqu web-spec suite examples/web_spec/smoke.suite.yaml --config examples/web_sp
 
 suite 文件必须命名为 `suite.yaml`、`suite.yml`、`*.suite.yaml` 或 `*.suite.yml`，顶层使用 `specs` 声明 case 列表；普通 case 顶层使用 `steps`。`run` 执行当前路径下的 suite 和未被 suite 引用的独立 case，避免重复执行；`list/index` 会同时展示 case 和 suite；`suite` 命令用于只执行单个 suite 文件。
 
-suite 用于把一个大流程拆成多个小 case，执行时会在同一个浏览器上下文、同一个 page 上按 `specs` 顺序接续运行。suite setup 会在共享 page 上执行；suite 开始时默认进入第一个 spec 的 `entry_url` / `entry_page`，后续 spec 不会在 case 边界自动重新导航。每个 spec 的入口字段仍用于单独运行该 spec，若 suite 中间需要跳转，请在 spec setup 或 steps 中显式声明。suite 内默认跳过单个 spec 的 teardown，最终清理由 suite-level `teardown` 负责，避免中间 case 清理 cookie 或恢复入口导致状态断裂。报告会记录 suite 元数据、case 顺序、source、fast_fail、timeout 和 suite 错误。
+suite 用于把一个大流程拆成多个小 case，执行时会在同一个浏览器上下文、同一个 page 上按 `specs` 顺序接续运行。suite setup 会在共享 page 上执行；suite 开始时默认进入第一个 spec 的 `entry_url` / `entry_page`，后续 spec 不会在 case 边界自动重新导航。每个 spec 的入口字段仍用于单独运行该 spec，若 suite 中间需要跳转，请在 spec setup 或 steps 中显式声明。suite 内默认跳过单个 spec 的 teardown，最终清理由 suite-level `teardown` 负责，避免中间 case 清理 cookie 或恢复入口导致状态断裂。报告会按 suite 下的具体子用例分别生成，`single_case: true` 也只影响执行接续语义，不会把多个子用例揉成一个报告记录，方便定位到底是哪个子用例失败；汇总报告会记录 suite 元数据、case 顺序、source、fast_fail、timeout 和 suite 错误。
 
 ```yaml
 id: web-spec-smoke
@@ -472,7 +472,7 @@ report/web_spec/<timestamp>/
     └── step_<order>.png
 ```
 
-`summary.*` 是批量运行汇总，单个 spec 目录下保存步骤、action、assertion、截图和错误信息。
+`summary.*` 是批量运行汇总，单个 spec 目录下保存步骤、action、assertion、截图和错误信息。suite 运行时，每个子用例都会生成独立的 `<spec-id>/report.*`，汇总表的 `Suite` 列用于标识其所属 suite。
 
 #### 索引行为
 

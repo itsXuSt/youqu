@@ -132,9 +132,11 @@ def _generate_summary_html(suite: SuiteRecord) -> str:
         link_dir = Path(record.report_dir).name if record.report_dir else record.spec_id
         link = f"{html_mod.escape(link_dir)}/report.html"
         order = record.suite_order or index
+        suite_label = _suite_label(record)
         rows.append(
             "<tr>"
             f"<td>{order}</td>"
+            f"<td>{suite_label}</td>"
             f"<td><a href='{link}'>{html_mod.escape(record.spec_id)}</a></td>"
             f"<td>{html_mod.escape(record.spec_title)}</td>"
             f"<td class='{record.status.value}'>{record.status.value}</td>"
@@ -160,7 +162,7 @@ def _generate_summary_html(suite: SuiteRecord) -> str:
         f"{meta}"
         f"<p>Total: {suite.total}, Passed: {suite.passed}, Failed: {suite.failed}, "
         f"Blocked: {suite.blocked}, Cancelled: {suite.cancelled}</p>"
-        "<table><thead><tr><th>Order</th><th>ID</th><th>Title</th><th>Status</th>"
+        "<table><thead><tr><th>Order</th><th>Suite</th><th>ID</th><th>Title</th><th>Status</th>"
         "<th>Duration</th><th>Source</th><th>Error</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table>"
     )
@@ -169,6 +171,15 @@ def _generate_summary_html(suite: SuiteRecord) -> str:
         body=body,
         timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )
+
+
+def _suite_label(record: RunRecord) -> str:
+    if not record.suite_id:
+        return "-"
+    label = record.suite_id
+    if record.suite_name:
+        label = f"{label} {record.suite_name}"
+    return html_mod.escape(label)
 
 
 def _ok_cls(success: bool) -> str:

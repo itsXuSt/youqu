@@ -168,6 +168,40 @@ def test_run_suite_setup_uses_shared_page(tmp_path, monkeypatch):
     assert step_pages == [context.pages[0]]
 
 
+def test_run_suite_single_case_reports_source_specs(tmp_path, monkeypatch):
+    runner = WebSpecRunner(WebSpecConfig(base_url="http://example.test", report_dir=str(tmp_path)))
+    context = FakeContext()
+    runner._context = context
+    monkeypatch.setattr(runner, "_start_browser", lambda: None)
+    monkeypatch.setattr(runner, "_stop_browser", lambda: None)
+    executed = []
+
+    def fake_execute_step(page, spec, step, execution, spec_dir, step_index=1, total_steps=1):
+        executed.append((spec.id, page, spec_dir.name))
+        return StepRecord(order=step.order, description=step.description)
+
+    monkeypatch.setattr(runner, "_execute_step", fake_execute_step)
+    suite_spec = SuiteSpec(
+        id="suite",
+        name="Suite",
+        single_case=True,
+        specs=[_spec("suite")],
+        source_specs=[_spec("first"), _spec("second")],
+    )
+
+    suite = runner.run_suite(suite_spec, report_dir=tmp_path)
+
+    assert [record.spec_id for record in suite.specs] == ["first", "second"]
+    assert [record.suite_order for record in suite.specs] == [1, 2]
+    assert len(context.pages) == 1
+    assert [item[0] for item in executed] == ["first", "second"]
+    assert executed[0][1] is context.pages[0]
+    assert executed[1][1] is context.pages[0]
+    assert executed[0][2] == "first"
+    assert executed[1][2] == "second"
+
+
+
 def test_run_suite_fast_fail_marks_remaining_specs_cancelled(tmp_path, monkeypatch):
     runner = WebSpecRunner(WebSpecConfig(base_url="http://example.test", report_dir=str(tmp_path)))
     runner._context = FakeContext()

@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from pathlib import Path
 
 
@@ -58,7 +59,7 @@ def _run_specs(args) -> None:
             _print_suite_dry_run(suite_spec)
         for spec in specs:
             _print_spec_dry_run(spec)
-        total_specs = len(specs) + sum(len(suite_spec.specs) for suite_spec in suites)
+        total_specs = len(specs) + sum(len(_suite_report_specs(suite_spec)) for suite_spec in suites)
         if suites:
             print(f"\n共 {len(suites)} 个 suite, {total_specs} 个 spec")
         else:
@@ -67,17 +68,43 @@ def _run_specs(args) -> None:
 
     reporter = SpecProgressReporter(verbose=getattr(args, "verbose", False))
     runner = WebSpecRunner(config, reporter=reporter)
+    report_dir = args.report_dir or _timestamp_report_dir(config.report_dir)
     has_failure = False
+    run_summaries = []
     for suite_spec in suites:
-        suite = runner.run_suite(suite_spec, report_dir=args.report_dir)
+        suite = runner.run_suite(suite_spec, report_dir=report_dir)
+        run_summaries.append(suite)
         print_suite_summary(suite)
         has_failure = has_failure or suite.failed > 0 or suite.blocked > 0 or suite.cancelled > 0
     if specs:
-        suite = runner.run_all(specs, report_dir=args.report_dir)
+        suite = runner.run_all(specs, report_dir=report_dir)
+        run_summaries.append(suite)
         print_suite_summary(suite)
         has_failure = has_failure or suite.failed > 0 or suite.blocked > 0 or suite.cancelled > 0
+    if len(run_summaries) > 1:
+        from web_spec.reporter import save_suite_summary
+        from web_spec.result import SuiteRecord
+
+        summary = SuiteRecord(suite_name="Web Spec Summary")
+        summary.start_time = min(item.start_time for item in run_summaries)
+        for item in run_summaries:
+            summary.specs.extend(item.specs)
+            if item.error:
+                summary.error = item.error if not summary.error else f"{summary.error}; {item.error}"
+        summary.finalize()
+        save_suite_summary(summary, report_dir)
     if has_failure:
         sys.exit(1)
+
+
+def _timestamp_report_dir(base: str | Path) -> Path:
+    return Path(base) / time.strftime("%Y%m%d_%H%M%S")
+
+
+def _suite_report_specs(suite_spec):
+    if getattr(suite_spec, "single_case", False) and getattr(suite_spec, "source_specs", None):
+        return suite_spec.source_specs
+    return suite_spec.specs
 
 
 def _load_run_targets(spec_path: str):
@@ -119,7 +146,7 @@ def _print_suite_dry_run(suite_spec) -> None:
         f"tags: {','.join(suite_spec.tags)}, fast_fail: {suite_spec.fast_fail}, "
         f"timeout: {suite_spec.timeout or '-'}"
     )
-    for spec in suite_spec.specs:
+    for spec in _suite_report_specs(suite_spec):
         action_count = len(spec.setup) + sum(len(step.actions) for step in spec.steps)
         assertion_count = sum(len(step.assertions) for step in spec.steps)
         print(
@@ -169,7 +196,7 @@ def _run_suite(args) -> None:
 
     if args.dry_run:
         _print_suite_dry_run(suite_spec)
-        print(f"\n共 {len(suite_spec.specs)} 个 spec")
+        print(f"\n共 {len(_suite_report_specs(suite_spec))} 个 spec")
         return
 
     reporter = SpecProgressReporter(verbose=getattr(args, "verbose", False))
