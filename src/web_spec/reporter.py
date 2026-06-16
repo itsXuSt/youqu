@@ -31,6 +31,10 @@ def save_suite_summary(suite: SuiteRecord, output_dir: str | Path) -> None:
     out = Path(output_dir)
     out.mkdir(parents=True, exist_ok=True)
     summary = {
+        "suite_id": suite.suite_id,
+        "suite_name": suite.suite_name,
+        "module": suite.module,
+        "tags": suite.tags,
         "total": suite.total,
         "passed": suite.passed,
         "failed": suite.failed,
@@ -48,7 +52,8 @@ def save_suite_summary(suite: SuiteRecord, output_dir: str | Path) -> None:
 
 def print_suite_summary(suite: SuiteRecord) -> None:
     """Print a compact suite summary to terminal."""
-    print("Web spec result:")
+    title = f"{suite.suite_id} {suite.suite_name}".strip()
+    print(f"Web spec result: {title}" if title else "Web spec result:")
     for record in suite.specs:
         print(
             f"  {record.spec_id:30s} {record.status.value:15s} "
@@ -104,7 +109,8 @@ def _generate_spec_html(record: RunRecord) -> str:
 def _generate_summary_html(suite: SuiteRecord) -> str:
     rows = []
     for record in suite.specs:
-        link = f"{html_mod.escape(record.spec_id)}/report.html"
+        link_dir = Path(record.report_dir).name if record.report_dir else record.spec_id
+        link = f"{html_mod.escape(link_dir)}/report.html"
         rows.append(
             "<tr>"
             f"<td><a href='{link}'>{html_mod.escape(record.spec_id)}</a></td>"
@@ -113,15 +119,24 @@ def _generate_summary_html(suite: SuiteRecord) -> str:
             f"<td>{record.duration_seconds:.2f}s</td>"
             "</tr>"
         )
+    suite_title = suite.suite_name or suite.suite_id or "Web Spec Summary"
+    meta = ""
+    if suite.suite_id or suite.module or suite.tags:
+        meta = (
+            f"<p>Suite: {html_mod.escape(suite.suite_id)} "
+            f"Module: {html_mod.escape(suite.module)} "
+            f"Tags: {html_mod.escape(','.join(suite.tags))}</p>"
+        )
     body = (
-        "<h1>Web Spec Summary</h1>"
+        f"<h1>{html_mod.escape(suite_title)}</h1>"
+        f"{meta}"
         f"<p>Total: {suite.total}, Passed: {suite.passed}, Failed: {suite.failed}, "
         f"Blocked: {suite.blocked}, Cancelled: {suite.cancelled}</p>"
         "<table><thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Duration</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody></table>"
     )
     return _HTML_TEMPLATE.format(
-        title="Web Spec Summary",
+        title=html_mod.escape(suite_title),
         body=body,
         timestamp=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     )

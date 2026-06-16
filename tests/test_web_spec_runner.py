@@ -5,6 +5,7 @@
 
 from web_spec.config import WebSpecConfig
 from web_spec.models import TestSpec
+from web_spec.result import RunRecord, RunStatus
 from web_spec.runner import WebSpecRunner
 
 
@@ -35,3 +36,43 @@ def test_spec_entry_url_wins():
     })
 
     assert runner._entry_url(spec) == "http://other.test/start"
+
+
+def test_run_all_blocks_only_remaining_specs_on_environment_error(tmp_path, monkeypatch):
+    runner = WebSpecRunner(WebSpecConfig(report_dir=str(tmp_path)))
+    specs = [
+        TestSpec.model_validate({
+            "id": "first",
+            "title": "First",
+            "steps": [{
+                "description": "检查",
+                "assertions": [{"type": "visible", "locator": {"strategy": "text", "value": "ok"}}],
+            }],
+        }),
+        TestSpec.model_validate({
+            "id": "second",
+            "title": "Second",
+            "steps": [{
+                "description": "检查",
+                "assertions": [{"type": "visible", "locator": {"strategy": "text", "value": "ok"}}],
+            }],
+        }),
+    ]
+
+    monkeypatch.setattr(runner, "_start_browser", lambda: None)
+    monkeypatch.setattr(runner, "_stop_browser", lambda: None)
+
+    def fake_run_spec(spec, report_root=None, spec_index=1, total_specs=1):
+        if spec.id == "second":
+            raise EnvironmentError("browser lost")
+        record = RunRecord(spec_id=spec.id, spec_title=spec.title, report_dir=str(tmp_path / spec.id))
+        record.finalize()
+        return record
+
+    monkeypatch.setattr(runner, "run_spec", fake_run_spec)
+
+    suite = runner.run_all(specs, report_dir=tmp_path)
+
+    assert [record.spec_id for record in suite.specs] == ["first", "second"]
+    assert suite.specs[0].status == RunStatus.PASSED
+    assert suite.specs[1].status == RunStatus.BLOCKED_ENV

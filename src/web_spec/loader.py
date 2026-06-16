@@ -11,6 +11,7 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
+from web_spec.kind import WebSpecFileKind, detect_web_spec_kind, is_suite_file
 from web_spec.models import StepSpec, TestSpec
 
 
@@ -35,6 +36,11 @@ def load_spec(path: str | Path) -> TestSpec:
         raise SpecValidationError(f"[{file_path}] spec 文件为空")
     if not isinstance(raw_data, dict):
         raise SpecValidationError(f"[{file_path}] spec 根节点必须是 mapping")
+    kind = detect_web_spec_kind(raw_data)
+    if kind == WebSpecFileKind.SUITE:
+        raise SpecValidationError(f"[{file_path}] 检测到 suite 文件，请使用 youqu web-spec suite 执行")
+    if kind == WebSpecFileKind.INVALID:
+        raise SpecValidationError(f"[{file_path}] 同一个 YAML 不能同时包含 specs 和 steps")
 
     return _parse_spec(raw_data, file_path)
 
@@ -50,7 +56,7 @@ def load_spec_dir(dir_path: str | Path) -> list[TestSpec]:
     specs = []
     files = sorted(
         p for p in root.rglob("*.y*ml")
-        if p.is_file() and p.name != "index.yaml"
+        if p.is_file() and p.name != "index.yaml" and not is_suite_file(p)
     )
     for file_path in files:
         specs.append(load_spec(file_path))

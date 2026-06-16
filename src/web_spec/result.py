@@ -107,10 +107,15 @@ class RunRecord:
 class SuiteRecord:
     """Suite execution record."""
 
+    suite_id: str = ""
+    suite_name: str = ""
+    module: str = ""
+    tags: list[str] = field(default_factory=list)
     specs: list[RunRecord] = field(default_factory=list)
     start_time: float = field(default_factory=time.time)
     end_time: float = 0
     duration_seconds: float = 0
+    error: str | None = None
 
     def finalize(self) -> None:
         self.end_time = time.time()

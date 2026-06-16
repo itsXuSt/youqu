@@ -24,7 +24,7 @@ def test_save_spec_report(tmp_path):
 
 
 def test_save_suite_summary(tmp_path):
-    suite = SuiteRecord()
+    suite = SuiteRecord(suite_id="smoke", suite_name="冒烟套件", module="认证", tags=["smoke"])
     record = RunRecord(spec_id="login", spec_title="登录测试", report_dir=str(tmp_path / "login"))
     record.finalize()
     suite.specs.append(record)
@@ -33,6 +33,8 @@ def test_save_suite_summary(tmp_path):
     save_suite_summary(suite, tmp_path)
 
     data = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    assert data["suite_id"] == "smoke"
+    assert data["suite_name"] == "冒烟套件"
     assert data["total"] == 1
     assert data["passed"] == 1
     assert (tmp_path / "summary.html").exists()

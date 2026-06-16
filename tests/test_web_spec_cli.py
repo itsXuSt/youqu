@@ -5,6 +5,8 @@
 
 from argparse import Namespace
 
+import pytest
+
 from cli.web_spec import run
 
 
@@ -62,6 +64,111 @@ steps:
     assert "Web spec check: checked=1" in captured.out
     assert "[WARN]" in captured.out
     assert "selector" in captured.out
+
+
+def test_web_spec_suite_dry_run(tmp_path, capsys):
+    spec_path = tmp_path / "login.yaml"
+    spec_path.write_text("""
+id: login
+title: 登录测试
+steps:
+  - description: 检查
+    assertions:
+      - type: visible
+        locator: {strategy: text, value: 欢迎}
+""", encoding="utf-8")
+    suite_path = tmp_path / "smoke.suite.yaml"
+    suite_path.write_text("""
+id: smoke
+name: 冒烟套件
+specs:
+  - login.yaml
+""", encoding="utf-8")
+
+    args = Namespace(
+        web_spec_command="suite",
+        suite_path=str(suite_path),
+        config=None,
+        headed=False,
+        report_dir=None,
+        dry_run=True,
+        no_screenshot=False,
+        verbose=False,
+    )
+
+    run(args)
+
+    captured = capsys.readouterr()
+    assert "[DRY-RUN] suite smoke: 冒烟套件" in captured.out
+    assert "login" in captured.out
+    assert "共 1 个 spec" in captured.out
+
+
+def test_web_spec_run_rejects_suite_file(tmp_path, capsys):
+    spec_path = tmp_path / "login.yaml"
+    spec_path.write_text("""
+id: login
+title: 登录测试
+steps:
+  - description: 检查
+    assertions:
+      - type: visible
+        locator: {strategy: text, value: 欢迎}
+""", encoding="utf-8")
+    suite_path = tmp_path / "smoke.suite.yaml"
+    suite_path.write_text("""
+id: smoke
+specs:
+  - login.yaml
+""", encoding="utf-8")
+
+    args = Namespace(
+        web_spec_command="run",
+        spec_path=str(suite_path),
+        config=None,
+        headed=False,
+        report_dir=None,
+        dry_run=True,
+        no_screenshot=False,
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        run(args)
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "youqu web-spec suite" in captured.err
+
+
+def test_web_spec_suite_rejects_case_file(tmp_path, capsys):
+    spec_path = tmp_path / "login.yaml"
+    spec_path.write_text("""
+id: login
+title: 登录测试
+steps:
+  - description: 检查
+    assertions:
+      - type: visible
+        locator: {strategy: text, value: 欢迎}
+""", encoding="utf-8")
+
+    args = Namespace(
+        web_spec_command="suite",
+        suite_path=str(spec_path),
+        config=None,
+        headed=False,
+        report_dir=None,
+        dry_run=True,
+        no_screenshot=False,
+        verbose=False,
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        run(args)
+
+    captured = capsys.readouterr()
+    assert exc_info.value.code == 1
+    assert "youqu web-spec run" in captured.err
 
 
 def test_web_spec_list_filters_specs(tmp_path, capsys):

@@ -11,8 +11,10 @@ from typing import Any
 
 import yaml
 
+from web_spec.kind import WebSpecFileKind, detect_web_spec_kind, is_suite_file
 from web_spec.loader import SpecValidationError, load_spec
 from web_spec.models import ActionSpec, ActionType, AssertionSpec, Locator, LocatorStrategy, TestSpec
+from web_spec.suite import load_suite
 
 
 @dataclass
@@ -34,6 +36,8 @@ class CheckReport:
 
     checked: int = 0
     skipped: int = 0
+    cases: int = 0
+    suites: int = 0
     issues: list[CheckIssue] = field(default_factory=list)
 
     @property
@@ -74,6 +78,45 @@ def check_specs(path: str | Path) -> CheckReport:
             ))
             continue
 
+        kind = detect_web_spec_kind(raw)
+        if kind == WebSpecFileKind.UNKNOWN:
+            if not _looks_like_web_yaml(raw):
+                report.skipped += 1
+                continue
+        if kind == WebSpecFileKind.INVALID:
+            report.checked += 1
+            report.issues.append(CheckIssue(
+                severity="ERROR",
+                file=str(file_path),
+                code="mixed_kind",
+                message="同一个 YAML 不能同时包含 specs 和 steps。",
+                suggestion="suite 使用 specs 字段，普通 case 使用 steps 字段，请拆分为两个文件。",
+            ))
+            continue
+        if kind == WebSpecFileKind.SUITE:
+            report.checked += 1
+            report.suites += 1
+            has_valid_suite_name = is_suite_file(file_path)
+            if not has_valid_suite_name:
+                report.issues.append(CheckIssue(
+                    severity="ERROR",
+                    file=str(file_path),
+                    code="suite_naming",
+                    message="suite 文件名不符合命名规范。",
+                    suggestion="使用 suite.yaml、suite.yml、*.suite.yaml 或 *.suite.yml。",
+                ))
+            try:
+                load_suite(file_path, require_suite_name=has_valid_suite_name)
+            except SpecValidationError as exc:
+                report.issues.append(CheckIssue(
+                    severity="ERROR",
+                    file=str(file_path),
+                    code="suite_schema",
+                    message=str(exc),
+                    suggestion="按 suite schema 补齐 specs、setup、teardown 等字段，并确认引用的 case 存在。",
+                ))
+            continue
+
         try:
             spec = load_spec(file_path)
         except SpecValidationError as exc:
@@ -81,6 +124,7 @@ def check_specs(path: str | Path) -> CheckReport:
                 report.skipped += 1
                 continue
             report.checked += 1
+            report.cases += 1
             report.issues.append(CheckIssue(
                 severity="ERROR",
                 file=str(file_path),
@@ -91,6 +135,7 @@ def check_specs(path: str | Path) -> CheckReport:
             continue
 
         report.checked += 1
+        report.cases += 1
         report.issues.extend(_check_raw_fields(file_path, raw))
         report.issues.extend(_check_spec_quality(file_path, spec))
 
@@ -123,7 +168,7 @@ def _read_yaml_mapping(file_path: Path) -> dict[str, Any]:
 
 
 def _looks_like_web_yaml(raw: dict[str, Any]) -> bool:
-    if any(key in raw for key in ("title", "entry_page", "entry_url", "setup", "teardown", "execution")):
+    if any(key in raw for key in ("title", "entry_page", "entry_url", "setup", "teardown", "execution", "specs")):
         return True
     steps = raw.get("steps")
     if isinstance(steps, list):

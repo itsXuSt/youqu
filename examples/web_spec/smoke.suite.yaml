@@ -1,0 +1,12 @@
+id: web-spec-smoke
+name: Web Spec 示例冒烟套件
+module: Web Spec 示例
+tags: [smoke, web]
+fast_fail: true
+timeout: 600
+specs:
+  - specs/01.侧边栏布局验证.yaml
+  - specs/02.标题栏主菜单验证.yaml
+  - specs/03.聊天输入区交互验证.yaml
+teardown:
+  reset_page_state: true

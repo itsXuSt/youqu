@@ -19,8 +19,10 @@ def run(args) -> None:
         _index_specs(args)
     elif command == "check":
         _check_specs(args)
+    elif command == "suite":
+        _run_suite(args)
     else:
-        print("Error: missing web-spec subcommand: run/list/index/check", file=sys.stderr)
+        print("Error: missing web-spec subcommand: run/list/index/check/suite", file=sys.stderr)
         sys.exit(1)
 
 
@@ -63,6 +65,56 @@ def _run_specs(args) -> None:
     reporter = SpecProgressReporter(verbose=getattr(args, "verbose", False))
     runner = WebSpecRunner(config, reporter=reporter)
     suite = runner.run_all(specs, report_dir=args.report_dir)
+    print_suite_summary(suite)
+    if suite.failed > 0 or suite.blocked > 0 or suite.cancelled > 0:
+        sys.exit(1)
+
+
+def _run_suite(args) -> None:
+    from web_spec.config import load_web_spec_config
+    from web_spec.loader import SpecValidationError
+    from web_spec.reporter import print_suite_summary
+    from web_spec.runner import WebSpecRunner
+    from web_spec.suite import load_suite
+    from web_spec.tui import SpecProgressReporter
+
+    try:
+        suite_spec = load_suite(args.suite_path)
+    except (FileNotFoundError, SpecValidationError, ValueError) as exc:
+        print(f"suite 加载失败: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    overrides = {
+        "headless": False if args.headed else None,
+        "report_dir": args.report_dir,
+        "screenshot_on_step": False if args.no_screenshot else None,
+    }
+    try:
+        config = load_web_spec_config(args.config, overrides=overrides)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"Web spec 配置加载失败: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.dry_run:
+        print(f"[DRY-RUN] suite {suite_spec.id}: {suite_spec.name}")
+        print(
+            f"  module: {suite_spec.module or 'uncategorized'}, "
+            f"tags: {','.join(suite_spec.tags)}, fast_fail: {suite_spec.fast_fail}, "
+            f"timeout: {suite_spec.timeout or '-'}"
+        )
+        for spec in suite_spec.specs:
+            action_count = len(spec.setup) + sum(len(step.actions) for step in spec.steps)
+            assertion_count = sum(len(step.assertions) for step in spec.steps)
+            print(
+                f"  - {spec.id}: {spec.title} "
+                f"steps={len(spec.steps)}, actions={action_count}, assertions={assertion_count}"
+            )
+        print(f"\n共 {len(suite_spec.specs)} 个 spec")
+        return
+
+    reporter = SpecProgressReporter(verbose=getattr(args, "verbose", False))
+    runner = WebSpecRunner(config, reporter=reporter)
+    suite = runner.run_suite(suite_spec, report_dir=args.report_dir)
     print_suite_summary(suite)
     if suite.failed > 0 or suite.blocked > 0 or suite.cancelled > 0:
         sys.exit(1)
@@ -125,7 +177,8 @@ def _check_specs(args) -> None:
         sys.exit(1)
 
     print(
-        f"Web spec check: checked={report.checked}, skipped={report.skipped}, "
+        f"Web spec check: checked={report.checked}, cases={report.cases}, "
+        f"suites={report.suites}, skipped={report.skipped}, "
         f"errors={report.errors}, warnings={report.warnings}"
     )
     for issue in report.issues:

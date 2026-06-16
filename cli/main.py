@@ -121,6 +121,15 @@ def main():
     p_web_check = web_spec_sub.add_parser("check", help="Statically check Web specs")
     p_web_check.add_argument("spec_path", help="Web spec file or directory")
 
+    p_web_suite = web_spec_sub.add_parser("suite", help="Run Web spec suite file")
+    p_web_suite.add_argument("suite_path", help="Web spec suite.yaml path")
+    p_web_suite.add_argument("--config", default=None, help="Web spec config path")
+    p_web_suite.add_argument("--headed", action="store_true", help="Run browser in headed mode")
+    p_web_suite.add_argument("--report-dir", default=None, help="Report output directory")
+    p_web_suite.add_argument("--dry-run", action="store_true", help="Load and validate suite only")
+    p_web_suite.add_argument("--no-screenshot", action="store_true", help="Disable step screenshots")
+    p_web_suite.add_argument("--verbose", action="store_true", help="Show action and assertion details")
+
     # youqu startproject <name>
     p_sp = sub.add_parser("startproject", help="Create project from template")
     p_sp.add_argument("name", nargs="?", help="Project name (default: youqu)")

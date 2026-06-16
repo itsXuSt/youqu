@@ -117,6 +117,71 @@ steps:
     assert "missing_expected" in {issue.code for issue in report.issues}
 
 
+def test_check_specs_checks_suite_files(tmp_path):
+    spec_path = tmp_path / "login.yaml"
+    spec_path.write_text("""
+id: login
+title: 登录测试
+steps:
+  - description: 检查
+    assertions:
+      - type: visible
+        locator: {strategy: text, value: 欢迎, exact: true}
+""", encoding="utf-8")
+    suite_path = tmp_path / "smoke.suite.yaml"
+    suite_path.write_text("""
+id: smoke
+specs:
+  - login.yaml
+""", encoding="utf-8")
+
+    report = check_specs(tmp_path)
+
+    assert report.cases == 1
+    assert report.suites == 1
+    assert report.errors == 0
+
+
+def test_check_specs_reports_suite_naming_error(tmp_path):
+    spec_path = tmp_path / "login.yaml"
+    spec_path.write_text("""
+id: login
+title: 登录测试
+steps:
+  - description: 检查
+    assertions:
+      - type: visible
+        locator: {strategy: text, value: 欢迎, exact: true}
+""", encoding="utf-8")
+    suite_path = tmp_path / "smoke.yaml"
+    suite_path.write_text("""
+id: smoke
+specs:
+  - login.yaml
+""", encoding="utf-8")
+
+    report = check_specs(tmp_path)
+
+    assert report.errors == 1
+    assert "suite_naming" in {issue.code for issue in report.issues}
+
+
+def test_check_specs_reports_suite_naming_and_schema_errors(tmp_path):
+    suite_path = tmp_path / "smoke.yaml"
+    suite_path.write_text("""
+id: smoke
+specs:
+  - missing.yaml
+""", encoding="utf-8")
+
+    report = check_specs(suite_path)
+    codes = {issue.code for issue in report.issues}
+
+    assert report.errors == 2
+    assert "suite_naming" in codes
+    assert "suite_schema" in codes
+
+
 def test_check_specs_warns_about_fragile_and_broad_locators(tmp_path):
     spec_path = tmp_path / "fragile.yaml"
     spec_path.write_text("""

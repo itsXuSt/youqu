@@ -414,14 +414,32 @@ youqu web-spec list examples/web_spec/specs --tag smoke
 youqu web-spec index examples/web_spec/specs
 ```
 
-静态检查 spec 质量，不启动浏览器：
+运行 suite 编排文件，按声明顺序执行多个 case：
+
+```shell
+youqu web-spec suite examples/web_spec/smoke.suite.yaml --config examples/web_spec/web_spec.yaml --dry-run
+youqu web-spec suite examples/web_spec/smoke.suite.yaml --config examples/web_spec/web_spec.yaml
+```
+
+suite 文件必须命名为 `suite.yaml`、`suite.yml`、`*.suite.yaml` 或 `*.suite.yml`，顶层使用 `specs` 声明 case 列表；普通 case 顶层使用 `steps`。`run/list/index` 只处理 case，目录中出现 suite 不会被重复执行；`suite` 命令只执行 `specs` 中显式列出的 case。
+
+```yaml
+id: web-spec-smoke
+name: Web Spec 示例冒烟套件
+fast_fail: true
+specs:
+  - specs/01.侧边栏布局验证.yaml
+  - specs/02.标题栏主菜单验证.yaml
+```
+
+静态检查 spec 和 suite 质量，不启动浏览器：
 
 ```shell
 youqu web-spec check examples/web_spec/specs
 youqu web-spec check path/to/spec_or_dir
 ```
 
-`check` 会检查 YAML/schema、兼容字段、脆弱 selector、过宽 text/css locator、长固定等待、URL 断言冗余 locator 等问题；存在 `ERROR` 时命令返回非 0，只有 `WARN` 时仍返回 0。
+`check` 会检查 YAML/schema、suite 命名、兼容字段、脆弱 selector、过宽 text/css locator、长固定等待、URL 断言冗余 locator 等问题；存在 `ERROR` 时命令返回非 0，只有 `WARN` 时仍返回 0。
 
 #### 报告输出
 

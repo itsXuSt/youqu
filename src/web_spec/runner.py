@@ -12,7 +12,8 @@ from urllib.parse import urljoin
 
 from web_spec import action_executor, assertion_executor
 from web_spec.config import WebSpecConfig
-from web_spec.models import ExecutionSpec, SettleSpec, TestSpec
+from web_spec.models import ExecutionSpec, SettleSpec, TeardownSpec, TestSpec
+from web_spec.suite import SuiteSpec
 from web_spec.reporter import save_spec_report, save_suite_summary
 from web_spec.result import (
     ActionRecord,
@@ -49,7 +50,7 @@ class WebSpecRunner:
                 suite.specs.append(record)
                 save_spec_report(record)
         except EnvironmentError as exc:
-            for spec in specs:
+            for spec in specs[len(suite.specs):]:
                 record = RunRecord(
                     spec_id=spec.id,
                     spec_title=spec.title,
@@ -62,6 +63,74 @@ class WebSpecRunner:
                 suite.specs.append(record)
                 save_spec_report(record)
         finally:
+            self._stop_browser()
+            suite.finalize()
+            save_suite_summary(suite, out_dir)
+            self._emit(
+                "suite_end",
+                total=suite.total,
+                passed=suite.passed,
+                failed=suite.failed,
+                blocked=suite.blocked,
+                cancelled=suite.cancelled,
+                duration_seconds=suite.duration_seconds,
+                report_dir=str(out_dir),
+            )
+        return suite
+
+    def run_suite(self, suite_spec: SuiteSpec, report_dir: str | Path | None = None) -> SuiteRecord:
+        """Run an explicit suite.yaml through one shared browser context."""
+        suite = SuiteRecord(
+            suite_id=suite_spec.id,
+            suite_name=suite_spec.name,
+            module=suite_spec.module,
+            tags=suite_spec.tags,
+        )
+        out_dir = Path(report_dir or _timestamp_dir(self.config.report_dir))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        self._emit(
+            "suite_start",
+            suite_id=suite.suite_id,
+            title=suite.suite_name,
+            total_specs=len(suite_spec.specs),
+            report_dir=str(out_dir),
+        )
+        try:
+            self._start_browser()
+            execution = self._default_execution()
+            setup_failed = False
+            if suite_spec.setup:
+                setup_error = self._run_lifecycle_actions(suite_spec.setup, execution)
+                if setup_error:
+                    suite.error = f"suite setup failed: {setup_error}"
+                    self._append_cancelled_records(suite, suite_spec.specs, out_dir, suite.error)
+                    setup_failed = True
+
+            started_at = time.monotonic()
+            for index, spec in enumerate(suite_spec.specs, start=1):
+                if setup_failed:
+                    break
+                if suite_spec.timeout and time.monotonic() - started_at >= suite_spec.timeout:
+                    reason = f"cancelled by suite timeout after {suite_spec.timeout}s"
+                    self._append_cancelled_records(suite, suite_spec.specs[index - 1:], out_dir, reason)
+                    break
+                record = self.run_spec(spec, out_dir, spec_index=index, total_specs=len(suite_spec.specs))
+                suite.specs.append(record)
+                save_spec_report(record)
+                if suite_spec.fast_fail and record.status != RunStatus.PASSED:
+                    reason = f"cancelled by suite fast_fail after {spec.id} failed"
+                    self._append_cancelled_records(suite, suite_spec.specs[index:], out_dir, reason)
+                    break
+        except EnvironmentError as exc:
+            suite.error = str(exc)
+            # suite.specs 与 suite_spec.specs 按执行顺序一一对应；这里只补齐尚未产生记录的剩余 specs。
+            self._append_cancelled_records(suite, suite_spec.specs[len(suite.specs):], out_dir, str(exc), RunStatus.BLOCKED_ENV)
+        finally:
+            if suite_spec.teardown and self._context is not None:
+                execution = self._default_execution()
+                teardown_error = self._run_lifecycle_teardown(suite_spec.teardown, execution)
+                if teardown_error and suite.error is None:
+                    suite.error = f"suite teardown failed: {teardown_error}"
             self._stop_browser()
             suite.finalize()
             save_suite_summary(suite, out_dir)
@@ -289,6 +358,73 @@ class WebSpecRunner:
                     page.goto(self._entry_url(spec), wait_until="domcontentloaded")
                 except Exception:
                     pass
+
+    def _run_lifecycle_actions(self, actions: list[Any], execution: ExecutionSpec) -> str | None:
+        if not actions:
+            return None
+        if self._context is None:
+            raise EnvironmentError("浏览器上下文未初始化")
+        page = self._context.new_page()
+        try:
+            page.goto(self._suite_entry_url(), wait_until="domcontentloaded")
+            return self._execute_lifecycle_actions(page, actions, execution)
+        finally:
+            page.close()
+
+    def _run_lifecycle_teardown(self, teardown: TeardownSpec, execution: ExecutionSpec) -> str | None:
+        if self._context is None:
+            raise EnvironmentError("浏览器上下文未初始化")
+        page = self._context.new_page()
+        try:
+            page.goto(self._suite_entry_url(), wait_until="domcontentloaded")
+            action_error = self._execute_lifecycle_actions(page, teardown.steps, execution)
+            if teardown.reset_page_state:
+                try:
+                    page.context.clear_cookies()
+                except Exception:
+                    pass
+            if teardown.restore_entry_page:
+                try:
+                    page.goto(self._suite_entry_url(), wait_until="domcontentloaded")
+                except Exception:
+                    pass
+            return action_error
+        finally:
+            page.close()
+
+    def _execute_lifecycle_actions(self, page: Any, actions: list[Any], execution: ExecutionSpec) -> str | None:
+        for action in actions:
+            result = action_executor.execute(page, action, execution)
+            if not result.success:
+                return f"{result.type}: {result.error}"
+        return None
+
+    def _append_cancelled_records(
+        self,
+        suite: SuiteRecord,
+        specs: list[TestSpec],
+        out_dir: Path,
+        reason: str,
+        status: RunStatus = RunStatus.CANCELLED,
+    ) -> None:
+        for spec in specs:
+            record = RunRecord(
+                spec_id=spec.id,
+                spec_title=spec.title,
+                status=status,
+                error=reason,
+                report_dir=str(out_dir / _safe_id(spec.id)),
+            )
+            Path(record.report_dir).mkdir(parents=True, exist_ok=True)
+            record.finalize()
+            suite.specs.append(record)
+            save_spec_report(record)
+
+    def _suite_entry_url(self) -> str:
+        route = self.config.entry_route
+        if self.config.base_url:
+            return urljoin(self.config.base_url.rstrip("/") + "/", route.lstrip("/"))
+        return route
 
     def _emit(self, kind: str, **payload: Any) -> None:
         if self._reporter is None:
