@@ -247,6 +247,7 @@ report_dir: report/web_spec
 | `viewport` | 浏览器视口大小 |
 | `assertion_timeout_ms` | 断言默认超时时间 |
 | `retry_interval_ms` | 断言重试间隔 |
+| `navigation_wait_after_ms` | 每次路由导航后的短暂等待时间，默认 300ms |
 | `screenshot_on_step` | 每个 step 后是否截图 |
 | `report_dir` | 报告输出目录 |
 

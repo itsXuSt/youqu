@@ -176,6 +176,7 @@ class WebSpecRunner:
                 raise EnvironmentError("浏览器上下文未初始化")
             page = self._context.new_page()
             page.goto(self._entry_url(spec), wait_until="domcontentloaded")
+            self._wait_after_navigation(page)
 
             for action in spec.setup:
                 setup_result = action_executor.execute(page, action, execution)
@@ -334,6 +335,14 @@ class WebSpecRunner:
         )
         return step_record
 
+    def _wait_after_navigation(self, page: Any) -> None:
+        if self.config.navigation_wait_after_ms <= 0:
+            return
+        try:
+            page.wait_for_timeout(self.config.navigation_wait_after_ms)
+        except AttributeError:
+            time.sleep(self.config.navigation_wait_after_ms / 1000)
+
     def _run_teardown(
         self,
         page: Any,
@@ -356,6 +365,7 @@ class WebSpecRunner:
             if teardown.restore_entry_page:
                 try:
                     page.goto(self._entry_url(spec), wait_until="domcontentloaded")
+                    self._wait_after_navigation(page)
                 except Exception:
                     pass
 
@@ -367,6 +377,7 @@ class WebSpecRunner:
         page = self._context.new_page()
         try:
             page.goto(self._suite_entry_url(), wait_until="domcontentloaded")
+            self._wait_after_navigation(page)
             return self._execute_lifecycle_actions(page, actions, execution)
         finally:
             page.close()
@@ -377,6 +388,7 @@ class WebSpecRunner:
         page = self._context.new_page()
         try:
             page.goto(self._suite_entry_url(), wait_until="domcontentloaded")
+            self._wait_after_navigation(page)
             action_error = self._execute_lifecycle_actions(page, teardown.steps, execution)
             if teardown.reset_page_state:
                 try:
@@ -386,6 +398,7 @@ class WebSpecRunner:
             if teardown.restore_entry_page:
                 try:
                     page.goto(self._suite_entry_url(), wait_until="domcontentloaded")
+                    self._wait_after_navigation(page)
                 except Exception:
                     pass
             return action_error

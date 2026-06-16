@@ -9,6 +9,14 @@ from web_spec.result import RunRecord, RunStatus
 from web_spec.runner import WebSpecRunner
 
 
+class WaitPage:
+    def __init__(self):
+        self.waits = []
+
+    def wait_for_timeout(self, timeout_ms):
+        self.waits.append(timeout_ms)
+
+
 def test_entry_url_joins_base_url_and_route():
     runner = WebSpecRunner(WebSpecConfig(base_url="http://example.test/app", entry_route="/chat"))
     spec = TestSpec.model_validate({
@@ -36,6 +44,24 @@ def test_spec_entry_url_wins():
     })
 
     assert runner._entry_url(spec) == "http://other.test/start"
+
+
+def test_wait_after_navigation_uses_configured_timeout():
+    runner = WebSpecRunner(WebSpecConfig(navigation_wait_after_ms=120))
+    page = WaitPage()
+
+    runner._wait_after_navigation(page)
+
+    assert page.waits == [120]
+
+
+def test_wait_after_navigation_can_be_disabled():
+    runner = WebSpecRunner(WebSpecConfig(navigation_wait_after_ms=0))
+    page = WaitPage()
+
+    runner._wait_after_navigation(page)
+
+    assert page.waits == []
 
 
 def test_run_all_blocks_only_remaining_specs_on_environment_error(tmp_path, monkeypatch):

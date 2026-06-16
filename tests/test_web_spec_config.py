@@ -59,6 +59,7 @@ def test_default_config_values():
     assert config.viewport.height == 720
     assert config.browser == "chromium"
     assert config.report_dir == "report/web_spec"
+    assert config.navigation_wait_after_ms == 300
 
 
 def test_load_flat_yaml_config(tmp_path):
@@ -72,6 +73,7 @@ browser: firefox
 assertion_timeout_ms: 1000
 retry_interval_ms: 50
 screenshot_on_step: false
+navigation_wait_after_ms: 120
 report_dir: /tmp/web-report
 """, encoding="utf-8")
 
@@ -86,6 +88,7 @@ report_dir: /tmp/web-report
     assert config.assertion_timeout_ms == 1000
     assert config.retry_interval_ms == 50
     assert config.screenshot_on_step is False
+    assert config.navigation_wait_after_ms == 120
     assert config.report_dir == "/tmp/web-report"
 
 

@@ -37,6 +37,7 @@ class WebSpecConfig:
     report_dir: str = "report/web_spec"
     auto_wait: str = "interactive"
     settle_ms: int = 300
+    navigation_wait_after_ms: int = 300
 
 
 _DEFAULTS = WebSpecConfig()
@@ -133,6 +134,7 @@ def _normalize_config_dict(raw: dict[str, Any]) -> dict[str, Any]:
         "screenshot_on_step",
         "auto_wait",
         "settle_ms",
+        "navigation_wait_after_ms",
     ):
         if key in engine:
             data[key] = engine[key]
@@ -172,6 +174,7 @@ def _build_config(raw: dict[str, Any]) -> WebSpecConfig:
         report_dir=str(data.get("report_dir", "report/web_spec") or "report/web_spec"),
         auto_wait=str(data.get("auto_wait", "interactive") or "interactive"),
         settle_ms=int(data.get("settle_ms", 300)),
+        navigation_wait_after_ms=int(data.get("navigation_wait_after_ms", 300)),
     )
 
 
@@ -209,6 +212,7 @@ assertion_timeout_ms: 30000
 retry_interval_ms: 500
 auto_wait: interactive
 settle_ms: 300
+navigation_wait_after_ms: 300
 
 # 报告配置。
 screenshot_on_step: true
@@ -229,4 +233,5 @@ def _config_to_dict(config: WebSpecConfig) -> dict[str, Any]:
         "report_dir": config.report_dir,
         "auto_wait": config.auto_wait,
         "settle_ms": config.settle_ms,
+        "navigation_wait_after_ms": config.navigation_wait_after_ms,
     }
