@@ -53,7 +53,7 @@ class YamlFile(pytest.File):
     """Represents a YAML test case file."""
 
     def collect(self):
-        testcase = parse_testcase(self.path)
+        testcase = parse_testcase(self.path, project_root=self.config.rootpath.parent)
         yield YamlItem.from_parent(
             self, name=testcase.name, testcase=testcase
         )

@@ -449,18 +449,49 @@ scatter element definitions across files.
 | `window_size` | `expected`, `actual` | Window dimensions match |
 | `dbus_property` | `value` | D-Bus property equals expected |
 
-**Variable substitution**: Use `${VAR_NAME}` in any string field. Variables are defined in the
-top-level `vars:` section and substituted at parse time. Built-in variables (auto-injected, overridable via `vars:`):
+**Variable substitution**: Use `${VAR_NAME}` in any string field. Variables are resolved at parse
+time with this priority (highest → lowest):
 
-| Variable | Value | Env Override |
+1. **Env var** (e.g. `YOUQU_BUILD_DIR=/custom/path`)
+2. **test_*.yaml `vars:`** — case-specific values
+3. **elements.yaml `vars:`** — project-level defaults (define once, reuse everywhere)
+4. **Built-in defaults** (see table below)
+
+**Define project-wide paths in `elements.yaml`** so all test cases share them. Individual test
+YAMLs only need `vars:` for case-specific values — they should NOT redefine common paths.
+
+| Built-in Variable | Default Value | Env Override |
 |---|---|---|
 | `${YAML_DIR}` | Directory containing the test YAML file | — |
-| `${PROJECT_ROOT}` | Project root (found via pytest.ini or elements.yaml) | — |
+| `${PROJECT_ROOT}` | autotest directory's parent (workspace root) | — |
 | `${TEST_FILES_DIR}` | `${PROJECT_ROOT}/test_files` | `YOUQU_TEST_FILES_DIR` |
 | `${BUILD_DIR}` | `${PROJECT_ROOT}/build` | `YOUQU_BUILD_DIR` |
 | `${APP_PATH}` | `app` field basename (for AT-SPI registration name) | — |
 
-Prefer `${BUILD_DIR}` and `${TEST_FILES_DIR}` over hardcoded absolute paths.
+**Example** — define in elements.yaml once:
+```yaml
+# elements.yaml
+app: deepin-music
+vars:
+  BUILD_DIR: "${PROJECT_ROOT}/build"
+  TEST_FILES_DIR: "${PROJECT_ROOT}/tests/files"
+elements:
+  play_button:
+    name: 播放
+```
+
+Then reference in any test_*.yaml without redefining:
+```yaml
+# test_play_001.yaml
+name: 播放音乐
+steps:
+  - action: session_start
+    command: "${BUILD_DIR}/deepin-music"
+  - action: keyboard_type
+    text: "${TEST_FILES_DIR}/sample.mp3"
+```
+
+Always use `${BUILD_DIR}` and `${TEST_FILES_DIR}` — never hardcode absolute paths.
 
 **Wait conditions**: Steps can have `wait_for` to poll until an element appears. Uses inline
 selectors (not ref) since wait_for target is transient UI state, not a registered element:

@@ -223,9 +223,6 @@ steps:
         assert tc.steps[0].text == f"{tmp_path}/data"
 
     def test_project_root_substitution(self, tmp_path):
-        (tmp_path / "pytest.ini").write_text(
-            "[pytest]\ntestpaths = apps\n", encoding="utf-8"
-        )
         yaml_dir = tmp_path / "cases"
         yaml_dir.mkdir()
         (yaml_dir / "elements.yaml").write_text(
@@ -238,7 +235,7 @@ steps:
   - action: keyboard_type
     text: "${PROJECT_ROOT}/build"
 """, encoding="utf-8")
-        tc = parse_testcase(p)
+        tc = parse_testcase(p, project_root=tmp_path)
         assert tc.steps[0].text == f"{tmp_path}/build"
 
     @patch.dict(os.environ, {"YOUQU_BUILD_DIR": "/custom/build"})
@@ -273,7 +270,7 @@ steps:
   - action: session_start
     command: "${APP_PATH}"
 """)
-        tc = parse_testcase(p)
+        tc = parse_testcase(p, project_root=tmp_path)
         assert "${" not in tc.steps[0].command
         assert tc.steps[0].command.endswith("/build/deepin-music")
 

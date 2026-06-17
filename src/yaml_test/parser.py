@@ -30,7 +30,7 @@ from typing import Any, Optional
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from src.yaml_test.elements import load_elements, ElementError as ElementLoadError
+from src.yaml_test.elements import load_elements, load_elements_vars, ElementError as ElementLoadError
 
 
 class Selector(BaseModel):
@@ -131,27 +131,14 @@ def _substitute(value: Any, variables: dict[str, Any]) -> Any:
     return value
 
 
-def _find_project_root(yaml_path: Path) -> Path | None:
-    """Search upward for the project root directory.
-
-    Looks for ``elements.yaml`` (marks the ``yaml/`` directory) or
-    ``pytest.ini`` (marks an autotest root).
-    """
-    current = yaml_path.parent
-    for _ in range(5):
-        if (current / "elements.yaml").exists():
-            return current.parent
-        if (current / "pytest.ini").exists():
-            return current
-        current = current.parent
-    return None
-
-
-def parse_testcase(path) -> TestCase:
+def parse_testcase(path, project_root: Path | None = None) -> TestCase:
     """Read and validate a YAML test case file.
 
     Args:
         path: Path to the .yaml file (str or pathlib.Path).
+        project_root: Workspace root directory (autotest's parent).
+            When provided, injected as ``${PROJECT_ROOT}`` for variable
+            substitution.  When None, PROJECT_ROOT is not available.
 
     Returns:
         Validated TestCase model.
@@ -173,14 +160,24 @@ def parse_testcase(path) -> TestCase:
     variables = raw_data.get("vars", {}) or {}
     if isinstance(variables, dict):
         variables.setdefault("YAML_DIR", str(file_path.parent))
-        _project_root = _find_project_root(file_path)
+        _project_root = Path(project_root) if project_root else None
         if _project_root:
             variables.setdefault("PROJECT_ROOT", str(_project_root))
+
+        # Load project-level vars from elements.yaml (can reference ${PROJECT_ROOT})
+        _elements_vars = load_elements_vars(file_path)
+        _builtin_for_elements = {"YAML_DIR": str(file_path.parent)}
+        if _project_root:
+            _builtin_for_elements["PROJECT_ROOT"] = str(_project_root)
+        _substituted_elements = {}
+        for k, v in _elements_vars.items():
+            _substituted_elements[k] = _substitute(str(v), _builtin_for_elements)
+
         _default_test_files = (
             str(_project_root / "test_files") if _project_root
             else str(file_path.parent / "test_files")
         )
-        variables.setdefault(
+        _substituted_elements.setdefault(
             "TEST_FILES_DIR",
             os.environ.get("YOUQU_TEST_FILES_DIR", _default_test_files),
         )
@@ -188,24 +185,29 @@ def parse_testcase(path) -> TestCase:
             str(_project_root / "build") if _project_root
             else str(file_path.parent / "build")
         )
-        variables.setdefault(
+        _substituted_elements.setdefault(
             "BUILD_DIR",
             os.environ.get("YOUQU_BUILD_DIR", _default_build),
         )
+
         _raw_app = raw_data.get("app", "")
         if _raw_app:
-            variables.setdefault(
+            _substituted_elements.setdefault(
                 "APP_PATH",
                 os.path.basename(_raw_app) if "/" in str(_raw_app) else str(_raw_app),
             )
 
+        # Merge: YAML-level vars > elements.yaml vars
+        merged = {**_substituted_elements, **variables}
+
         for _ in range(5):
-            prev = dict(variables)
-            variables = {k: _substitute(v, variables) for k, v in variables.items()}
-            if variables == prev:
+            prev = dict(merged)
+            merged = {k: _substitute(v, merged) for k, v in merged.items()}
+            if merged == prev:
                 break
 
-        substituted = _substitute(raw_data, variables)
+        substituted = _substitute(raw_data, merged)
+        variables = merged
     else:
         substituted = raw_data
 

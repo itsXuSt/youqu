@@ -292,7 +292,7 @@ Use `${VAR_NAME}` in any string field. Variables are substituted at parse time
 | Variable | Value | Override Env |
 |----------|-------|--------------|
 | `${YAML_DIR}` | Directory containing the current `.yaml` file | — |
-| `${PROJECT_ROOT}` | Project root (parent of `elements.yaml` dir, or `pytest.ini` dir) | — |
+| `${PROJECT_ROOT}` | autotest directory's parent (workspace root) | — |
 | `${TEST_FILES_DIR}` | Test data files directory (default: `${PROJECT_ROOT}/test_files`) | `YOUQU_TEST_FILES_DIR` |
 | `${BUILD_DIR}` | Build output directory (default: `${PROJECT_ROOT}/build`) | `YOUQU_BUILD_DIR` |
 | `${APP_PATH}` | `app` field basename (for AT-SPI registration name) | — |
@@ -308,28 +308,54 @@ steps:
 
 ### User-Defined Variables
 
+**Project-level variables**: Define common paths in `elements.yaml` `vars:` section. All test
+cases in the project inherit them — no need to repeat in each test YAML.
+
 ```yaml
+# elements.yaml — define once, reuse in every test_*.yaml
+app: deepin-music
 vars:
-  PDF_PATH: "/home/user/test.pdf"
-  APP_BIN: "/usr/bin/deepin-reader"
-setup:
+  BUILD_DIR: "${PROJECT_ROOT}/build"
+  TEST_FILES_DIR: "${PROJECT_ROOT}/tests/files"
+  APP_PATH: "${BUILD_DIR}/deepin-music"
+elements:
+  play_button:
+    name: 播放
+```
+
+```yaml
+# test_play_001.yaml — reference vars, no redefinition needed
+name: 播放音乐
+steps:
   - action: session_start
-    command: "${APP_BIN} ${PDF_PATH}"
+    command: "${APP_PATH}"
+  - action: keyboard_type
+    text: "${TEST_FILES_DIR}/sample.mp3"
+```
+
+**Case-specific variables**: Only use `vars:` in a test YAML for values unique to that case.
+
+```yaml
+# test_export_003.yaml — only case-specific var here
+name: 导出播放列表
+vars:
+  EXPORT_PATH: "${TEST_FILES_DIR}/export.m3u"
 steps:
   - action: element_set_value
-    selector: {name: "路径输入框"}
-    text: "${PDF_PATH}"
+    selector: {name: "导出路径"}
+    text: "${EXPORT_PATH}"
 ```
+
+**Priority** (highest → lowest): env var > test YAML `vars:` > elements.yaml `vars:` > built-in defaults.
 
 Nested references are resolved iteratively:
 
 ```yaml
+# elements.yaml
 vars:
   BUILD_DIR: "${PROJECT_ROOT}/build"
   APP_PATH: "${BUILD_DIR}/deepin-music"
-setup:
-  - action: session_start
-    command: "${APP_PATH}"  # → /project/build/deepin-music
+# ${APP_PATH} → /workspace/build/deepin-music
 ```
 
 ## Wait Conditions

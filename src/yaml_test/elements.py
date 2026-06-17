@@ -127,3 +127,36 @@ def resolve_ref(
             f"ref '{ref_name}' not found in elements.yaml.{hint}"
         )
     return elements[ref_name]
+
+
+def load_elements_vars(
+    testcase_yaml_path: Path, max_depth: int = 4
+) -> dict[str, Any]:
+    """Load ``vars`` from ``elements.yaml`` by searching upward.
+
+    Returns project-level variables defined in elements.yaml (the same file
+    searched by ``load_elements``). Variables can reference built-in vars
+    like ``${PROJECT_ROOT}``.
+
+    Args:
+        testcase_yaml_path: Absolute path to a ``test_*.yaml`` file.
+        max_depth: Maximum directory levels to search upward (default 4).
+
+    Returns:
+        ``{"VAR_NAME": "value", ...}`` from the ``vars`` key, or empty dict.
+    """
+    current_dir = testcase_yaml_path.parent
+
+    for _ in range(max_depth + 1):
+        candidate = current_dir / "elements.yaml"
+        if candidate.exists():
+            raw = yaml.safe_load(candidate.read_text(encoding="utf-8")) or {}
+            if not isinstance(raw, dict):
+                return {}
+            return raw.get("vars", {}) or {}
+
+        if current_dir.parent == current_dir:
+            break
+        current_dir = current_dir.parent
+
+    return {}
