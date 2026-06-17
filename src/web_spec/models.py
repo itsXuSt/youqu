@@ -63,6 +63,13 @@ class SettleSpec(BaseModel):
     wait_for_text: Optional[str] = None
 
 
+class PositionSpec(BaseModel):
+    """Element-relative position in a Web spec action."""
+
+    x: float
+    y: float
+
+
 class ActionSpec(BaseModel):
     """A single action in a Web spec step."""
 
@@ -71,9 +78,12 @@ class ActionSpec(BaseModel):
     type: ActionType
     locator: Optional[Locator] = None
     target: Optional[Locator] = None
+    source_position: Optional[PositionSpec] = None
+    target_position: Optional[PositionSpec] = None
     value: Optional[Any] = None
     key: Optional[str] = None
     direction: Optional[str] = None
+    steps: Optional[int] = None
     timeout_ms: int = 5000
     settle_after: Optional[SettleSpec] = None
 

@@ -69,7 +69,10 @@ def test_drag_to_action_target_is_supported():
             "actions": [{
                 "type": "drag_to",
                 "locator": {"strategy": "css", "value": ".source"},
+                "source_position": {"x": 10, "y": 12},
                 "target": {"strategy": "css", "value": ".target"},
+                "target_position": {"x": 40, "y": 30},
+                "steps": 5,
             }],
         }],
     })
@@ -77,6 +80,11 @@ def test_drag_to_action_target_is_supported():
     action = spec.steps[0].actions[0]
     assert action.type == ActionType.DRAG_TO
     assert action.target.value == ".target"
+    assert action.source_position.x == 10
+    assert action.source_position.y == 12
+    assert action.target_position.x == 40
+    assert action.target_position.y == 30
+    assert action.steps == 5
 
 
 def test_numeric_priority_is_normalized_to_string():
