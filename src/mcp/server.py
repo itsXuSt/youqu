@@ -857,10 +857,9 @@ def _find_yaml_dir():
     env_dir = _os.environ.get("YOUQU_AUTOTEST_DIR", "")
     if env_dir:
         ep = Path(env_dir)
-        if (ep / "yaml").is_dir() and (ep / "pytest.ini").exists():
-            return ep / "yaml", ep
-        if ep.is_dir() and (ep / "pytest.ini").exists():
-            return ep, ep
+        if (ep / "yaml").is_dir():
+            pytest_dir = ep if (ep / "pytest.ini").exists() else ep.parent if (ep.parent / "pytest.ini").exists() else ep
+            return ep / "yaml", pytest_dir
 
     cwd = Path.cwd()
     if (cwd / "yaml").is_dir() and (cwd / "pytest.ini").exists():

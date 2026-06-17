@@ -520,6 +520,7 @@ Check:
 - YAML: file count == automatable case count
 - Both YAML and Python cases appear in collection output
 - YAML files parse without YAML errors
+- **Every YAML file contains description, module, feature, tags fields** — missing any is a defect
 - elements.yaml contains all refs used by test cases
 - Non-automatable YAML cases are documented with reason comments
 - File name ID == method name ID for every Python case
@@ -556,7 +557,12 @@ For multi-module generation, dispatch one sub-agent per batch in parallel.
 
 4. MUST DO:
    - Generate YAML by default; use Python only for complex branching/loops
-   - YAML must follow schema: name, app, setup, steps, teardown
+   - YAML must follow schema: name, description, module, feature, tags, app, setup, steps, teardown
+   - **Every YAML MUST include description, module, feature, tags metadata fields — never omit**
+   - `description`: From xlsx "测试步骤" + "预期结果" columns (multi-line block scalar)
+   - `module`: From xlsx module column (e.g. "主菜单", "基础操作", "全屏")
+   - `feature`: Feature subcategory inferred from case content (e.g. "关于", "打开图片")
+   - `tags`: From xlsx priority column mapped to tags (e.g. ["L1"], ["L2", "smoke"])
    - Each YAML step must use ref (never inline selector/x/y/items)
    - Populate elements.yaml with all UI elements from AT-SPI tree capture
    - Read the JSON batch file for case data

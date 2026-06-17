@@ -103,6 +103,18 @@ elements:
 
 ```yaml
 name: "测试用例标题"
+description: |
+  前置条件:
+  1.
+
+  测试步骤:
+  1.
+
+  预期结果:
+  1.
+module: ""               # 模块分类，如 "播放"、"设置"、"编辑"
+feature: ""              # 功能子类，如 "本地文件"、"在线流"
+tags: []                  # 标签，如 ["L1", "smoke"]
 app: "app-name"
 screenshot: false       # enable automatic screenshots after each step
 skip: "skip-触摸操作无法自动化"  # optional: skip this case with reason string
