@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>YouQu Web Spec Fixture</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 2rem;
+    }
+
+    .panel {
+      border: 1px solid #ccc;
+      margin-top: 1rem;
+      padding: 1rem;
+    }
+
+    [hidden] {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>YouQu Web Spec Fixture</h1>
+
+    <label for="name-input">名称</label>
+    <input id="name-input" data-testid="name-input" placeholder="请输入名称">
+
+    <button type="button" data-testid="submit-button">提交</button>
+    <p data-testid="result">等待提交</p>
+
+    <button type="button" data-testid="toggle-button">显示详情</button>
+    <section data-testid="details-panel" class="panel" hidden>
+      <p>详情面板已显示</p>
+    </section>
+
+    <label for="choice-select">选项</label>
+    <select id="choice-select" data-testid="choice-select">
+      <option value="alpha">Alpha</option>
+      <option value="beta">Beta</option>
+    </select>
+  </main>
+
+  <script>
+    const input = document.querySelector('[data-testid="name-input"]');
+    const submit = document.querySelector('[data-testid="submit-button"]');
+    const result = document.querySelector('[data-testid="result"]');
+    const toggle = document.querySelector('[data-testid="toggle-button"]');
+    const panel = document.querySelector('[data-testid="details-panel"]');
+
+    submit.addEventListener('click', () => {
+      const name = input.value.trim() || '匿名用户';
+      result.textContent = `提交成功：${name}`;
+    });
+
+    toggle.addEventListener('click', () => {
+      panel.hidden = !panel.hidden;
+      toggle.textContent = panel.hidden ? '显示详情' : '隐藏详情';
+    });
+  </script>
+</body>
+</html>

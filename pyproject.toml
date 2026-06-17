@@ -20,7 +20,7 @@ classifiers = [
 
 dependencies = [
     "funnylog",
-    "pydantic>=1.10",
+    "pydantic>=2.0",
     "pytest>=6.2.5",
     "allure-pytest==2.9.45",
     "allure-custom",
@@ -30,6 +30,8 @@ dependencies = [
     "pyscreeze==0.1.28",
     "pytest-rerunfailures==10.2",
     "pytest-timeout==2.1.0",
+    "setuptools<81",
+    "rich",
     "tomli; python_version < '3.11'",
     "fastmcp",
     "httpx",
@@ -45,6 +47,9 @@ youqu-startproject = "youqu.src.startproject:cli"
 
 [project.entry-points.pytest11]
 youqu = "youqu.plugin"
+
+[tool.hatch.build]
+dev-mode-dirs = [".."]
 
 [tool.hatch.build.targets.wheel]
 sources = {"" = "youqu"}

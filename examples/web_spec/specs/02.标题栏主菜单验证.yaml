@@ -1,0 +1,35 @@
+id: "02.标题栏主菜单验证"
+title: "标题栏主菜单验证"
+module: "顶部标题栏"
+
+steps:
+  - order: 1
+    description: "验证标题栏存在"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".title-bar"
+
+  - order: 2
+    description: "点击主菜单按钮"
+    actions:
+      - type: click
+        locator:
+          strategy: bem_css
+          value: ".title-bar__button .icon-icon_titlebar_menu"
+
+  - order: 3
+    description: "验证菜单弹出且包含预期选项"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".title-bar .menu--root"
+      - type: text_contains
+        locator:
+          strategy: bem_css
+          value: ".title-bar .menu--root"
+        expected:
+          - "设置"
+          - "关于"

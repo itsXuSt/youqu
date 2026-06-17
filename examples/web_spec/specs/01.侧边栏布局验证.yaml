@@ -1,0 +1,36 @@
+id: "01.侧边栏布局验证"
+title: "侧边栏布局验证"
+module: "侧边栏"
+
+steps:
+  - order: 1
+    description: "验证侧边栏可见"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".window-sidebar"
+
+  - order: 2
+    description: "验证新建对话按钮存在"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".window-sidebar__new-item-entry"
+
+  - order: 3
+    description: "验证智能体分组存在"
+    assertions:
+      - type: visible
+        locator:
+          strategy: css
+          value: "#group-assistant-list"
+
+  - order: 4
+    description: "验证聊天记录列表区域存在"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: "#group-conversation-list"

@@ -1,0 +1,44 @@
+id: "07.新会话创建验证"
+title: "新会话创建验证"
+module: "聊天区"
+
+steps:
+  - order: 1
+    description: "验证新建会话按钮可见"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".window-sidebar__new-item-entry"
+
+  - order: 2
+    description: "点击新建会话按钮"
+    actions:
+      - type: click
+        locator:
+          strategy: bem_css
+          value: ".window-sidebar__new-item-entry"
+
+  - order: 3
+    description: "验证回到聊天页面"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".chat-view"
+
+  - order: 4
+    description: "验证输入区仍然可用"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".input-area__field"
+
+  - order: 5
+    description: "验证欢迎视图显示（新会话无消息）"
+    assertions:
+      - type: visible
+        locator:
+          strategy: bem_css
+          value: ".chat-view__welcome"

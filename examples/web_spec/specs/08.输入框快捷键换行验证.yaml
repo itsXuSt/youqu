@@ -1,0 +1,70 @@
+id: "08.输入框快捷键换行验证"
+title: "输入框快捷键换行验证"
+module: "聊天区"
+
+steps:
+  - order: 1
+    description: "聚焦聊天输入框"
+    actions:
+      - type: click
+        locator:
+          strategy: bem_css
+          value: ".input-area__field"
+
+  - order: 2
+    description: "输入第一行并按 Ctrl+Enter 换行"
+    actions:
+      - type: input_text
+        locator:
+          strategy: bem_css
+          value: ".input-area__field"
+        value: "行1"
+        settle_after:
+          network_idle: false
+          settle_ms: 500
+      - type: press_key
+        key: "Control+Enter"
+        settle_after:
+          network_idle: false
+          settle_ms: 500
+
+  - order: 3
+    description: "输入第二行并按 Shift+Enter 换行"
+    actions:
+      - type: keyboard_type
+        value: "行2"
+        settle_after:
+          network_idle: false
+          settle_ms: 500
+      - type: press_key
+        key: "Shift+Enter"
+        settle_after:
+          network_idle: false
+          settle_ms: 500
+
+  - order: 4
+    description: "按 Alt+Enter 换行并输入第三行"
+    actions:
+      - type: keyboard_type
+        value: "行3"
+        settle_after:
+          network_idle: false
+          settle_ms: 500
+      - type: press_key
+        key: "Alt+Enter"
+        settle_after:
+          network_idle: false
+          settle_ms: 500
+
+  - order: 5
+    description: "验证输入框 p 标签 HTML 为三行换行内容"
+    assertions:
+      - type: html_contains
+        retry: false
+        locator:
+          strategy: css
+          value: ".template-editor__pm-root p"
+        expected: "行1<br>行2<br>行3<br>"
+
+quality_notes:
+  - "通过 html_contains 校验 .template-editor__pm-root 下 p 标签的 innerHTML 片段，避免 ProseMirror 自动尾随换行节点影响结果"

@@ -15,6 +15,7 @@ _YOUQU_PKG = Path(__file__).resolve().parent.parent
 
 _INJECT_PATHS = (
     _YOUQU_PKG,
+    _YOUQU_PKG / "src",
     _YOUQU_PKG / "setting",
     _YOUQU_PKG / "src" / "depends",
 )
@@ -95,6 +96,44 @@ def main():
     p_index.add_argument("--module", default="", help="Filter by module")
     p_index.add_argument("--tag", default="", help="Filter by tag (comma-separated)")
 
+    # youqu web-spec
+    p_web_spec = sub.add_parser("web-spec", help="Run and manage Web specs")
+    web_spec_sub = p_web_spec.add_subparsers(dest="web_spec_command")
+
+    p_web_run = web_spec_sub.add_parser("run", help="Run Web spec file or directory")
+    p_web_run.add_argument("spec_path", help="Web spec file or directory")
+    p_web_run.add_argument("--config", default=None, help="Web spec config path")
+    p_web_run.add_argument("--headed", action="store_true", help="Run browser in headed mode")
+    p_web_run.add_argument("--report-dir", default=None, help="Report output directory")
+    p_web_run.add_argument("--dry-run", action="store_true", help="Load and validate specs only")
+    p_web_run.add_argument("--no-screenshot", action="store_true", help="Disable step screenshots")
+    p_web_run.add_argument("--verbose", action="store_true", help="Show action and assertion details")
+
+    p_web_list = web_spec_sub.add_parser("list", help="List Web specs")
+    p_web_list.add_argument("spec_dir", help="Web spec directory")
+    p_web_list.add_argument("--module", default="", help="Filter by module")
+    p_web_list.add_argument("--feature", default="", help="Filter by feature")
+    p_web_list.add_argument("--tag", default="", help="Filter by tag (comma-separated)")
+
+    p_web_index = web_spec_sub.add_parser("index", help="Rebuild Web spec index")
+    p_web_index.add_argument("spec_dir", help="Web spec directory")
+
+    p_web_check = web_spec_sub.add_parser("check", help="Statically check Web specs")
+    p_web_check.add_argument("spec_path", help="Web spec file or directory")
+
+    p_web_init = web_spec_sub.add_parser("init", help="Initialize Web spec config file")
+    p_web_init.add_argument("config_path", nargs="?", default="web_spec.yaml", help="Config file path")
+    p_web_init.add_argument("--force", action="store_true", help="Overwrite existing config file")
+
+    p_web_suite = web_spec_sub.add_parser("suite", help="Run Web spec suite file")
+    p_web_suite.add_argument("suite_path", help="Web spec suite.yaml path")
+    p_web_suite.add_argument("--config", default=None, help="Web spec config path")
+    p_web_suite.add_argument("--headed", action="store_true", help="Run browser in headed mode")
+    p_web_suite.add_argument("--report-dir", default=None, help="Report output directory")
+    p_web_suite.add_argument("--dry-run", action="store_true", help="Load and validate suite only")
+    p_web_suite.add_argument("--no-screenshot", action="store_true", help="Disable step screenshots")
+    p_web_suite.add_argument("--verbose", action="store_true", help="Show action and assertion details")
+
     # youqu startproject <name>
     p_sp = sub.add_parser("startproject", help="Create project from template")
     p_sp.add_argument("name", nargs="?", help="Project name (default: youqu)")
@@ -124,6 +163,9 @@ def main():
     elif args.command == "index":
         from youqu.cli.index import run as index_run
         index_run(args)
+    elif args.command == "web-spec":
+        from youqu.cli.web_spec import run as web_spec_run
+        web_spec_run(args)
     elif args.command == "startproject":
         from youqu.src.startproject import cli
         cli()
