@@ -66,13 +66,15 @@ silently.
 **xlsx/csv mode**: Use the export script to produce JSON batches:
 
 ```bash
-# Save intermediate JSON to autotest/module_batches/ for permanent reference
-python3 @scripts/export_xlsx.py <xlsx_or_csv_path> --autotest-root autotest --batch-size 10
+# Parse xlsx/csv into JSON batches for agent consumption (throwaway intermediate)
+python3 @scripts/export_xlsx.py <xlsx_or_csv_path> <output_dir> [--batch-size 10]
 ```
 
 Each batch is a JSON file containing ≤10 cases with fields: id, title, module,
-precondition, steps, expected, priority, case_type. Batches are saved to
-`autotest/module_batches/` and also to the specified output directory.
+precondition, steps, expected, priority, case_type. The output directory is a
+**throwaway temp directory** — the JSON is consumed by the agent during case
+generation and does not need to be persisted. The original xlsx/csv in
+`autotest/casefiles/` is the permanent source of truth.
 
 **feature mode**: Gather context manually from PR descriptions, git diffs, etc.
 
@@ -94,12 +96,12 @@ youqu make <name> --format all     # Both YAML + Python
 **Default (yaml)** — YAML is the primary format. `yaml/` directory with shared `elements.yaml`:
 ```
 autotest/
-├── yaml/
+├── yaml/                         # YAML test cases (primary format)
 │   ├── elements.yaml           # MANDATORY shared element registry (upward lookup supported)
 │   ├── test_<name>_001.yaml    # sample flat-layout case
 │   └── <module>/               # optional module subdirectory (Allure auto-groups by dir)
 │       └── test_<name>_002.yaml
-├── module_batches/             # intermediate JSON from xlsx/csv export (permanent reference)
+├── casefiles/                   # source xlsx/csv case design docs (permanent input)
 ├── conftest.py
 ├── pytest.ini
 ├── config.ini
@@ -316,23 +318,45 @@ elements:
 
 #### YAML Test Case Format
 
+Every YAML test case MUST include a complete metadata header that preserves ALL
+original xlsx/csv case information. This is the **single source of traceability**
+back to the original case design — never omit any field.
+
+**xlsx → YAML field mapping:**
+
+| xlsx field | YAML location | Required |
+|---|---|---|
+| 用例编号 (ID) | `vars.xlsx_id` | ✅ always |
+| 用例标题 (title) | `name` | ✅ always |
+| 所属模块 (module) | `module` | ✅ always |
+| 前置条件 (precondition) | `description` (prepended) | ✅ if non-empty |
+| 步骤 (steps) | `description` (main body) | ✅ always |
+| 预期 (expected) | `description` (appended) | ✅ always |
+| 用例级别 (priority) | `tags` (mapped) | ✅ always |
+| 用例类型 (case_type) | `vars.case_type` | ✅ always |
+
 ```yaml
-name: "测试用例标题"
-description: |
-  前置条件:
-
-  测试步骤:
-  1.
-
-  预期结果:
-  1.
-module: ""       # 模块分类，如 "播放"、"设置"、"编辑"
-feature: ""      # 功能子类，如 "本地文件"、"在线流"
-tags: []          # 标签，如 ["L1", "smoke"]
+name: "用例标题（原始 xlsx 标题）"
 app: "app-name"
 screenshot: false
+description: |
+  前置条件:
+  <original precondition from xlsx — omit section if empty>
+
+  测试步骤:
+  1. <step>
+  2. <step>
+
+  预期结果:
+  1. <expected>
+  2. <expected>
+module: "主菜单"           # ← xlsx "所属模块", never empty string
+feature: "关于"           # ← inferred subcategory from case content
+tags:
+  - L1                   # ← xlsx "用例级别" mapped to tag
 vars:
-  KEY: "value"
+  xlsx_id: "1652139"     # ← xlsx "用例编号", traceability to original
+  case_type: "功能测试"   # ← xlsx "用例类型"
 
 setup:
   - action: session_start
@@ -520,7 +544,7 @@ Check:
 - YAML: file count == automatable case count
 - Both YAML and Python cases appear in collection output
 - YAML files parse without YAML errors
-- **Every YAML file contains description, module, feature, tags fields** — missing any is a defect
+- **Every YAML file contains complete metadata header: name, description, module, feature, tags, vars.xlsx_id, vars.case_type — missing any is a defect**
 - elements.yaml contains all refs used by test cases
 - Non-automatable YAML cases are documented with reason comments
 - File name ID == method name ID for every Python case
@@ -544,7 +568,6 @@ For multi-module generation, dispatch one sub-agent per batch in parallel.
 2. EXPECTED OUTCOME:
    - YAML files in autotest/yaml/ or autotest/yaml/<module>/ (subdirectory for multi-module projects)
    - elements.yaml populated with all UI elements from AT-SPI tree (at yaml/ root)
-   - Intermediate JSON batches saved to autotest/module_batches/ for permanent reference
    - Python files in autotest/case/ (fallback, for complex cases)
    - <count> YAML or Python files total
    - 1 Widget file in autotest/widget/<module>_widget.py (py mode only)
@@ -558,11 +581,14 @@ For multi-module generation, dispatch one sub-agent per batch in parallel.
 4. MUST DO:
    - Generate YAML by default; use Python only for complex branching/loops
    - YAML must follow schema: name, description, module, feature, tags, app, setup, steps, teardown
-   - **Every YAML MUST include description, module, feature, tags metadata fields — never omit**
-   - `description`: From xlsx "测试步骤" + "预期结果" columns (multi-line block scalar)
-   - `module`: From xlsx module column (e.g. "主菜单", "基础操作", "全屏")
+   - **Every YAML MUST include a complete metadata header — never omit any field**
+   - `name`: xlsx "用例标题" (exact copy)
+   - `description`: xlsx "前置条件" + "步骤" + "预期" (multi-line block scalar, all three sections)
+   - `module`: xlsx "所属模块" (exact copy, never empty string)
    - `feature`: Feature subcategory inferred from case content (e.g. "关于", "打开图片")
-   - `tags`: From xlsx priority column mapped to tags (e.g. ["L1"], ["L2", "smoke"])
+   - `tags`: xlsx "用例级别" mapped to tags (e.g. ["L1"], ["L2", "smoke"])
+   - `vars.xlsx_id`: xlsx "用例编号" (traceability to original case, REQUIRED)
+   - `vars.case_type`: xlsx "用例类型" (e.g. "功能测试", "兼容性测试")
    - Each YAML step must use ref (never inline selector/x/y/items)
    - Populate elements.yaml with all UI elements from AT-SPI tree capture
    - Read the JSON batch file for case data

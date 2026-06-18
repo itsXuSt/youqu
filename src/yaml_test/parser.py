@@ -174,8 +174,8 @@ def parse_testcase(path, project_root: Path | None = None) -> TestCase:
             _substituted_elements[k] = _substitute(str(v), _builtin_for_elements)
 
         _default_test_files = (
-            str(_project_root / "test_files") if _project_root
-            else str(file_path.parent / "test_files")
+            str(_project_root / "tests" / "files") if _project_root
+            else str(file_path.parent / "tests" / "files")
         )
         _substituted_elements.setdefault(
             "TEST_FILES_DIR",
