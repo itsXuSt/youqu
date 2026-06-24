@@ -33,7 +33,7 @@ try:
 except ImportError as exc:
     sys.path[:] = _original_syspath
     print(f"Error: fastmcp is required for MCP server mode: {exc}")
-    print("Install it with: pip install youqu-framework")
+    print("Install it with: pip install youqu-ai")
     sys.exit(1)
 finally:
     sys.path[:] = _original_syspath

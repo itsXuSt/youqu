@@ -32,7 +32,7 @@ def main():
     _inject_paths()
     try:
         from importlib.metadata import version as _get_version
-        _youqu_version = _get_version("youqu-framework")
+        _youqu_version = _get_version("youqu-ai")
     except Exception:
         _youqu_version = "unknown"
 

@@ -45,7 +45,7 @@ YouQu（有趣）是统信公司（Deepin/UOS）开源的一个 Linux 操作系�
 从 PyPI 安装:
 
 ```shell
-$ sudo pip3 install youqu-framework
+$ sudo pip3 install youqu-ai
 ```
 
 > 验证安装：`youqu --help` 列出所有子命令，`youqu --version` 显示版本号。
@@ -60,7 +60,7 @@ $ sudo pip3 install youqu-framework
 不加 sudo 也可以：
 
 ```shell
-pip3 install youqu-framework
+pip3 install youqu-ai
 ```
 
 但可能出现 `youqu-startproject` 命令无法使用；
@@ -191,9 +191,9 @@ $ bash env.sh
 
 | 功能 | 安装方式 |
 |------|----------|
-| Web UI 自动化 | `pip install youqu-framework[webui]` + `playwright install chromium` |
-| 远程执行 | `pip install youqu-framework[remote]`，需 `sshpass` |
-| MCP Server | 随 `pip install youqu-framework` 自动安装 |
+| Web UI 自动化 | `pip install youqu-ai[webui]` + `playwright install chromium` |
+| 远程执行 | `pip install youqu-ai[remote]`，需 `sshpass` |
+| MCP Server | 随 `pip install youqu-ai` 自动安装 |
 | Wayland 支持 | 额外需要 `g++ cmake qt5-default libkf5wayland-dev wl-clipboard` 等编译依赖 |
 
 ### Web Spec 自动化测试
@@ -212,7 +212,7 @@ playwright install chromium
 已安装 wheel 的环境可使用：
 
 ```shell
-pip install "youqu-framework[webui]"
+pip install "youqu-ai[webui]"
 playwright install chromium
 ```
 
@@ -490,7 +490,7 @@ youqu web-spec index <spec_dir>
 
 | 现象 | 处理方式 |
 |------|----------|
-| `Web spec 需要安装 Playwright` | 安装 `youqu-framework[webui]` 或源码环境执行 `pip install -e ".[webui]"` |
+| `Web spec 需要安装 Playwright` | 安装 `youqu-ai[webui]` 或源码环境执行 `pip install -e ".[webui]"` |
 | 浏览器启动失败 | 执行 `playwright install chromium`，或检查系统依赖 |
 | locator 匹配 0 个元素 | 检查页面是否进入正确状态，或调整 selector/text/test_id |
 | locator 匹配多个元素 | 使用更精确 locator，或显式设置 `first: true` |
@@ -725,10 +725,54 @@ cp -r $(python3 -c "import youqu; from pathlib import Path; print(Path(youqu.__f
 $ git clone https://github.com/linuxdeepin/youqu.git
 $ cd youqu
 $ python3 -m build
-$ pip3 install dist/youqu_framework-*.whl
+$ pip3 install dist/youqu_ai-*.whl
 ```
 
 > 需要 `python3 -m pip install build` 安装构建工具。
+
+### 发布到 PyPI
+
+发布需要 `build` 和 `twine` 工具：
+
+```shell
+$ pip3 install --upgrade build twine
+```
+
+`~/.pypirc` 配置文件示例：
+
+```ini
+[pypi]
+  username = __token__
+  password = pypi-你的-PyPI-Token
+
+[testpypi]
+  username = __token__
+  password = pypi-你的-TestPyPI-Token
+```
+
+> Token 在 https://pypi.org/manage/account/token/ 和 https://test.pypi.org/manage/account/token/ 生成。
+
+发布流程（推荐先发到 TestPyPI 验证）：
+
+```shell
+# 1. 清理旧构建产物
+$ rm -rf dist/ build/ *.egg-info
+
+# 2. 构建
+$ python3 -m build
+
+# 3. 检查包质量
+$ twine check dist/*
+
+# 4. 先发到 TestPyPI 验证
+$ twine upload --repository testpypi dist/*
+
+# 5. 验证安装
+$ pip install --index-url https://test.pypi.org/simple/ --no-deps youqu-ai
+
+# 6. 确认无误后，发布到正式 PyPI
+$ twine upload dist/*
+```
 
 ### 开发环境
 

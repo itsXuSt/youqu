@@ -535,7 +535,7 @@ class WebSpecRunner:
         try:
             from playwright.sync_api import sync_playwright
         except ImportError as exc:
-            raise EnvironmentError("Web spec 需要安装 Playwright：pip install 'youqu-framework[webui]'") from exc
+            raise EnvironmentError("Web spec 需要安装 Playwright：pip install 'youqu-ai[webui]'") from exc
 
         try:
             self._pw = sync_playwright().start()

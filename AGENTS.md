@@ -1,7 +1,7 @@
 # YouQu (有趣) — AGENTS.md
 
 Linux 桌面自动化测试框架，统信 Deepin/UOS 开源，GPL-2.0。
-当前版本: `2.17.2`，PyPI 包名: `youqu-framework`。
+PyPI 包名: `youqu-ai`。
 
 ## 技术特点
 
@@ -86,7 +86,7 @@ youqu/
 
 ## 命令
 
-### CLI 命令 (pip install youqu-framework 后可用)
+### CLI 命令 (pip install youqu-ai 后可用)
 ```bash
 youqu make <name> <fmt>                         # 生成 autotest/ 骨架 (py/yaml/all)
 youqu run                                       # 执行 autotest/ 下测试

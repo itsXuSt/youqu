@@ -8,12 +8,12 @@
 
 ### 1.1 问题
 
-1. **依赖未声明**: `pyproject.toml` 的 `dependencies = []` 为空，所有 pip 包通过 `env.sh` + pipenv 安装，无法通过 `pip install youqu-framework` 自动解决依赖。
+1. **依赖未声明**: `pyproject.toml` 的 `dependencies = []` 为空，所有 pip 包通过 `env.sh` + pipenv 安装，无法通过 `pip install youqu-ai` 自动解决依赖。
 2. **CLI 入口缺失**: 当前 `youqu` 命令是一个 pipenv wrapper shell 脚本，不是 Python console_scripts。`manage.py` 依赖项目目录结构，无法从安装包直接执行。
 
 ### 1.2 目标
 
-1. `pip install youqu-framework` 自动安装所有 pip 依赖。
+1. `pip install youqu-ai` 自动安装所有 pip 依赖。
 2. `youqu make <name>` 在任意项目目录生成独立的 `autotest/` 测试骨架。
 3. `youqu run` 在任意目录执行 `autotest/` 下的测试用例。
 4. 新流程与现有流程完全并行，互不影响。
@@ -88,7 +88,7 @@ youqu/                          # 安装后 in site-packages/youqu/
 
 ```toml
 [project]
-name = "youqu-framework"
+name = "youqu-ai"
 version = "2.15.0"
 dependencies = [
     "funnylog",
@@ -260,7 +260,7 @@ sudo apt install -y \
     scrot xdotool wmctrl
 ```
 
-pip 包由 `pip install youqu-framework` 根据 `pyproject.toml` 自动解决。
+pip 包由 `pip install youqu-ai` 根据 `pyproject.toml` 自动解决。
 
 ## 4. 兼容性
 
