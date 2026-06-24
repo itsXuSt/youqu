@@ -32,6 +32,7 @@ class Locator(BaseModel):
     exact: bool = False
     stability: str = "stable_bem"
     first: bool = False
+    scope: Optional[Locator] = None
 
 
 class ActionType(str, Enum):
