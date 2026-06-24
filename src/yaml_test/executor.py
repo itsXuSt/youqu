@@ -227,13 +227,15 @@ def _handle_session_stop(step: ActionStep, context: dict) -> None:
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
-    elif proc is None:
-        app = context.get("app", "")
-        if app:
-            pkill_name = os.path.basename(app) if "/" in app else app
-            subprocess.run(
-                f"pkill {shlex.quote(pkill_name)}", shell=True, check=False
-            )
+    # Always pkill by app name to handle single-instance apps (e.g. DTK DBus
+    # single-instance) where the tracked Popen process has already exited
+    # but the real app instance is still running.
+    app = context.get("app", "")
+    if app:
+        pkill_name = os.path.basename(app) if "/" in app else app
+        subprocess.run(
+            f"pkill -9 {shlex.quote(pkill_name)}", shell=True, check=False
+        )
     context.pop("app_process", None)
 
 

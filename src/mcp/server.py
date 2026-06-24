@@ -22,12 +22,21 @@ _project_root = Path(__file__).resolve().parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
+# Prevent src/mcp/ from shadowing the real `mcp` package.
+# When youqu injects src/ into sys.path, `import mcp` resolves to
+# src/mcp/ instead of the MCP SDK, breaking fastmcp's `import mcp.types`.
+_src_path = str(Path(__file__).resolve().parent.parent)  # src/
+_original_syspath = sys.path.copy()
 try:
+    sys.path[:] = [p for p in sys.path if p != _src_path]
     from fastmcp import FastMCP
 except ImportError as exc:
+    sys.path[:] = _original_syspath
     print(f"Error: fastmcp is required for MCP server mode: {exc}")
     print("Install it with: pip install youqu-framework")
     sys.exit(1)
+finally:
+    sys.path[:] = _original_syspath
 
 # YouQu framework exceptions inherit BaseException, not Exception.
 # Bare "except Exception" cannot catch them — must use a combined tuple.

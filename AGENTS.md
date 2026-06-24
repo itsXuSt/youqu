@@ -1,11 +1,11 @@
 # YouQu (有趣) — AGENTS.md
 
 Linux 桌面自动化测试框架，统信 Deepin/UOS 开源，GPL-2.0。
-当前版本: v2.14.4，PyPI 包名: `youqu-framework`。
+当前版本: `2.17.2`，PyPI 包名: `youqu-framework`。
 
 ## 技术特点
 
-**五大测试能力**: 桌面 UI (AT-SPI+Dogtail)、Web UI (Playwright)、DBus 接口、命令行、HTTP 接口。
+**六大测试能力**: 桌面 UI (AT-SPI+Dogtail)、Web UI (Playwright)、DBus 接口、命令行、HTTP 接口、AI/MCP/VLM 自动化。
 
 **X11 + Wayland 双协议支持** — 框架核心差异点。键鼠操作在 X11 用 xdotool/pyautogui，Wayland 用 ydotool/D-Bus Autotool；窗口信息在 X11 用 xdotool+xwininfo，Wayland 用 libdtkwmjack (CTypes FFI)。`GlobalConfig.IS_WAYLAND` 是关键开关。
 
@@ -23,26 +23,26 @@ Linux 桌面自动化测试框架，统信 Deepin/UOS 开源，GPL-2.0。
 4. 多机器执行 — 远程执行器支持分布式测试
 5. 测试报告与数据回填 — Allure 报告 + JSON 报告 + PMS 自动回填
 
-## AI 结合潜力分析
+## AI / MCP / VLM 集成
 
-框架当前无任何 AI/LLM 集成代码。以下是可行的结合方向:
+框架已内置 AI 相关能力，不是仅停留在规划阶段:
 
-- **自然语言 → 用例生成**: 将 AI 生成的测试步骤翻译为 Widget 方法调用链，生成 `test_*.py` + CSV 标签文件
-- **自愈元素定位**: AT-SPI 树结构变化时，LLM 基于上下文推断替代定位策略 (XPath/属性名/角色)
-- **OCR 语义增强**: 当前 OCR 仅做精确文本匹配，LLM 可做模糊/语义匹配，提高稳定性
-- **失败原因自动归类**: LLM 分析录屏/截图/日志自动归类失败原因 (环境/产品缺陷/脚本问题)
-- **用例维护**: 从 PMS 需求描述或 PR 变更自动生成/更新测试用例
-- **关键结合点**: `Src` 多继承基类、`DogtailUtils` 的 AT-SPI 树 API、`ButtonCenter` 坐标系统、`conftest.py` 的 CSV 标签引擎
+- **VLM 模块**: `src/vlm/` 提供视觉定位、VLM 断言、VLM Agent 执行能力。VLM 需要外部 OpenAI-compatible API server，例如 Ollama + Qwen2.5-VL；框架没有内置模型。
+- **MCP Server**: `src/mcp/` 暴露桌面自动化、YAML 用例、VLM/截图、命令查询等工具。MCP HTTP transport 依赖 `fastmcp-slim[server]`。
+- **多模态用例执行**: `cli/multica_report.py` 与 `skills/youqu-case-runner/SKILL.md` 支持从 issue/PR/Multica 上下文生成并执行 YAML 用例。
+- **用例生成 Skill**: `skills/youqu-case-generator/SKILL.md` 支持从需求/PR/问题描述生成可执行 YAML 用例。
+- **设计文档**: `docs/prd/multica-integration.md` 记录 Multica 集成设计；`docs/youqu-mcp-vlm-evaluation.md` 记录 MCP/VLM 集成与评估。
+- **关键结合点**: `Src` 多继承基类、`DogtailUtils` 的 AT-SPI 树 API、`ButtonCenter` 坐标系统、`src/vlm/vlm_agent.py` 的 VLM 执行循环、`src/mcp/server.py` 的工具入口。
 
 ## 项目结构
 
 ```
 youqu/
 ├── manage.py           # 主入口 CLI，子命令: run/remote/startapp/pmsctl/csvctl/git
-├── conftest.py         # pytest 根配置 (钩子、fixture、CSV标签解析、PMS回填)
+├── conftest.py         # pytest 根配置 (钩子、fixture、CSV标签解析、执行后PMS回填)
 ├── apps/               # 测试用例目录 (pytest testpaths)，每个子目录是一个 APP 工程
 ├── src/                # 核心框架
-│   ├── __init__.py     # Src 多继承基类 (CmdCtl+ImageUtils+FileCtl+ShortCut+Calculate+OCR)
+│   ├── __init__.py     # Src 多继承基类；VLM 可选导入 lazy fallback
 │   ├── dogtail_utils.py    # AT-SPI 元素定位 (X11/Wayland)
 │   ├── button_center.py    # 埐标定位系统 (基于 ui.ini 配置)
 │   ├── mouse_key.py        # 键鼠操作 (xdotool/ydotool)
@@ -55,17 +55,21 @@ youqu/
 │   ├── requestx.py          # HTTP 请求
 │   ├── rtk/                # 运行时: local_runner, remote_runner
 │   ├── pms/                # PMS 集成: send2pms, suite, task, pms2csv, csv2pms
-│   ├── plugins/            # pytest 插件 (emoji_hooks, allure_report_extend)
+│   ├── plugins/            # 空目录；pytest 插件不在 src/plugins/
 │   ├── remotectl/          # SSH 远程控制
 │   ├── git/                # Git 子命令 (clone/commit统计/健康检查)
 │   ├── depends/            # 内嵌第三方库 (dogtail, sniff, wayland_autotool 等)
 │   └── utils/              # 环境部署脚本
 ├── cli/                  # CLI 命令 (youqu console_scripts)
 │   ├── main.py            # argparse 路由入口
-│   ├── make.py            # youqu make 骨架生成
-│   └── run.py             # youqu run 执行逻辑
+│   ├── make.py            # youqu make 生成 autotest/ 骨架 (py/yaml/all)
+│   ├── run.py             # youqu run 执行逻辑
+│   ├── report.py          # youqu report 生成/查看 Allure 报告
+│   ├── index.py           # YAML 用例索引查询/重建
+│   └── multica_report.py # Multica 上下文生成并执行用例
 ├── plugin/               # pytest 插件 (entry_points.pytest11)
-│   └── __init__.py        # sys.path 注入 + 环境变量
+│   ├── __init__.py        # sys.path 注入 + 环境变量 + YAML collector
+│   └── entry_points.pytest11
 ├── setting/            # 配置
 │   ├── globalconfig.py  # 全局配置加载器 (读取 globalconfig.ini)
 │   ├── globalconfig.ini  # 主配置文件 (12 个 section)
@@ -84,13 +88,16 @@ youqu/
 
 ### CLI 命令 (pip install youqu-framework 后可用)
 ```bash
-youqu make <name>                              # 生成 autotest/ 骨架
+youqu make <name> <fmt>                         # 生成 autotest/ 骨架 (py/yaml/all)
 youqu run                                       # 执行 autotest/ 下测试
 youqu run -k "keyword"                          # 关键词过滤 (透传 pytest)
 youqu run --alluredir=./report                  # 覆盖报告路径
 youqu mcp                                       # 启动 MCP server (stdio)
 youqu mcp --transport http --host 0.0.0.0 --port 8066  # HTTP 模式
-youqu startproject <name>                       # 创建项目 (PO 模式脚手架)
+youqu report                                    # 生成/查看 Allure 报告
+youqu index                                     # YAML 用例索引查询/重建
+youqu doctor                                    # 环境检查与 skill 安装
+youqu startproject <name>                       # 复制框架创建项目；骨架生成用 youqu make
 ```
 
 ### 测试执行 (manage.py，传统流程)
@@ -106,7 +113,7 @@ youqu manage.py run --ifixed yes              # 忽略 fixed 标记 (fixed-不�
 
 ### 工程管理
 ```bash
-youqu manage.py startapp autotest_deepin_xxx   # 创建 APP 工程 (PO 模式脚手架)
+youqu manage.py startapp autotest_deepin_xxx   # 复制框架创建 APP 工程
 youqu manage.py pmsctl                         # PMS 数据管理
 youqu manage.py csvctl                         # CSV 标签管理
 youqu manage.py git                            # Git 子项目操作
@@ -135,22 +142,26 @@ twine upload dist/*                            # 发布到 PyPI
 不一致的用例会被框架自动 skip。例如: `test_music_001` 对应 `test_music_001.py`。
 
 ### APP 工程 PO 模式
-通过 `startapp` 创建的工程遵循 Page Object 设计:
+`youqu make <name> <py|yaml|all>` 会生成 `autotest/` 骨架；`youqu startproject <name>` 会复制整个框架创建项目。
+
+Python 用例工程遵循 Page Object 设计:
 ```
-apps/autotest_xxx/
-├── config.py              # 应用配置
-├── xxx.csv                 # CSV 标签管理
-├── xxx_assert.py           # 自定义断言 (继承 AssertCommon)
-├── conftest.py             # 应用级 fixture
+autotest_xxx/
+├── config.ini            # 应用配置
+├── xxx.csv               # CSV 标签管理
+├── xxx_assert.py         # 自定义断言 (继承 AssertCommon)
+├── conftest.py           # 应用级 fixture
 ├── case/
-│   ├── base_case.py        # 用例基类 (继承 AssertCommon)
-│   └── test_xxx_001.py     # 具体用例
+│   ├── base_case.py      # 用例基类 (继承 AssertCommon)
+│   └── test_xxx_001.py  # 具体用例
 └── widget/
-    ├── base_widget.py      # Widget 基类 (继承 Src)
-    ├── xxx_widget.py       # 应用 Widget (封装 dog/button_center 操作)
-    ├── ui.ini              # 控件坐标配置
-    └── pic_res/            # 模板图片
+    ├── base_widget.py    # Widget 基类 (继承 Src)
+    ├── xxx_widget.py     # 应用 Widget (封装 dog/button_center 操作)
+    ├── ui.ini            # 控件坐标配置
+    └── pic_res/          # 模板图片
 ```
+
+YAML 用例工程使用 `yaml/elements.yaml` 作为元素引用单点，并通过 `src/yaml_test/` 的 pytest collector 与 executor 执行。
 
 继承链: `Src → BaseWidget → XxxWidget` (方法层)，`AssertCommon → XxxAssert → BaseCase → TestXxx` (用例层)。
 
@@ -168,7 +179,8 @@ from setting import conf  # GlobalConfig 短别名
 ```
 
 ### pytest 隐含配置 (pytest.ini)
-自动生效: `-s -vv --no-header --show-capture=no --tb=auto -r fEs --continue-on-collection-errors --ignore=src,setting,public`。测试路径: `apps/`。最低 pytest 版本: 6.2.5。
+根 pytest 自动生效: `-s -vv --no-header --show-capture=no --tb=auto -r fEs --continue-on-collection-errors --ignore=src,setting,public`。测试路径: `apps/`。最低 pytest 版本: 6.2.5。
+YAML APP 工程的 `autotest/pytest.ini` 使用 `testpaths = yaml` / `testpaths = case` / `testpaths = case yaml`，并设置 `yaml_files = yaml`。
 
 ### 代码风格
 Ruff: line-length=100, 4-space indent, Python 3.10+。仅启用 E4/E7/E9/F 规则 (大量 F 规则被 ignore)。
@@ -179,7 +191,14 @@ Ruff: line-length=100, 4-space indent, Python 3.10+。仅启用 E4/E7/E9/F 规�
 - 需要桌面环境 (X11 或 Wayland)，不能在 headless 下运行 UI 测试
 - DISPLAY=:0 在 `conftest.py` 中硬编码
 - 依赖通过 `env.sh` 安装 (无 requirements.txt / Pipfile / poetry.lock)
-- 可选依赖: letmego (重启类场景)，playwright (Web UI)，zerorpc (远程执行)
+- 可选依赖: letmego (重启类场景)，playwright (Web UI)，zerorpc (远程执行)，fastmcp-slim[server] (MCP HTTP transport)
 
 ### 远程执行
 `manage.py remote` 通过 SSH 分发代码，`--slaves` 参数格式: `user@ip:password`，多台用 `/` 分隔。
+
+### MCP / VLM 约束
+- `src/mcp/server.py` 暴露桌面自动化、YAML 用例、VLM/截图、命令查询等工具。
+- MCP `system_run_command` 使用只读命令白名单，且采用精确匹配，不做前缀匹配。
+- MCP `keyboard_press_key` / `keyboard_hot_key` 会拦截危险快捷键组合。
+- MCP `screenshot_save` 固定输出到 `_PROJECT_ROOT / "report" / "vlm_evidence"`，不接受调用方传任意输出路径；`VLM_EVIDENCE_DIR` 只影响 VLM 内部配置，不控制 MCP 工具输出。
+- `src/__init__.py` 对 VLM 模块做可选导入 fallback；`Src.vlm` / `Src.vlm_agent` 是 lazy property，会检查 `VLMConfig().is_available()`。
